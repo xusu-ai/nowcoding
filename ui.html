@@ -174,6 +174,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans
 .parse-btn{height:32px;padding:0 12px;border-radius:var(--radius);background:transparent;border:1px solid var(--border);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;margin-left:6px;transition:all .15s;white-space:nowrap}
 .parse-btn:hover{background:var(--hover);color:var(--text);border-color:var(--g-mid)}
 .parse-btn:disabled{opacity:.4;cursor:not-allowed}
+.parse-input{height:30px;padding:0 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text);background:var(--bg);outline:none;width:200px;transition:border-color .2s;font-family:var(--mono)}
+.parse-input:focus{border-color:var(--g-mid)}
+.parse-input::placeholder{color:var(--text3)}
 .stop-btn{width:32px;height:32px;border-radius:var(--radius);background:#ef4444;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .2s;margin-left:4px}
 .stop-btn:hover{opacity:.9}
 .stop-btn:disabled{opacity:.3;cursor:not-allowed}
@@ -287,6 +290,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans
           <button class="editor-tab" onclick="switchEditor('js')" id="tab-js">JS</button>
         </div>
         <div class="actions">
+          <input class="parse-input" id="parse-input" data-i18n-placeholder="parseInputPh" placeholder="输入网址..." onkeydown="if(event.key==='Enter')parseUrl()" />
+          <button class="nav-btn ghost parse-open" id="parse-open-btn" onclick="parseUrl()" data-i18n="parseOpen">解析网址</button>
           <button class="nav-btn ghost" style="padding:4px 8px" onclick="saveProject()" data-i18n="save">Save</button>
         </div>
       </div>
@@ -501,7 +506,7 @@ const i18n={
     latest:'最新',popular:'最热',noSnippets:'还没有作品',createOne:'开始创作',delete:'删除',scrollMore:'下拉加载更多',noMore:'没有更多了',
     aiAssistant:'AI 代码助手',chatWelcome:'\u{1F44B} 用对话来编程',chatDesc:'描述你想要的效果，AI 会为你生成完整的 HTML 代码',refreshSuggestions:'换一批',
     chatPlaceholder:'告诉我你想做什么页面...',resetChat:'重置对话',loading:'加载中...',
-    parseBtn:'解析',parsing:'解析中…',parseEmpty:'请输入网址',parseErr:'解析失败',parseDone:'解析完成！已内联 {n} 个素材，点「保存」即可存入作品榜',
+    parseBtn:'解析',parsing:'解析中…',parseEmpty:'请输入网址',parseErr:'解析失败',parseDone:'解析完成！已内联 {n} 个素材，点「保存」即可存入作品榜',parseOpen:'解析网址',parseInputPh:'输入网址...',
     // Modal
     details:'详情',fullscreen:'全屏',exitFullscreen:'退出全屏',fitWin:'自适应窗口',run:'▶ 运行',editAI:'✎ AI编辑',
     editAILoaded:'已加载项目「{t}」的完整源代码（共 {n} 字符）。请告诉我你想修改什么，我会在现有代码基础上调整。',editAIHint:'我现在想基于以下项目源代码做修改，请根据我接下来的指令在该代码基础上调整：',
@@ -533,7 +538,7 @@ const i18n={
     // AI Chat
     aiAssistant:'AI Code Assistant',chatWelcome:'\u{1F44B} Code with Conversation',chatDesc:'Describe what you want, AI generates complete HTML for you',refreshSuggestions:'Refresh',
     chatPlaceholder:'Tell me what you want to build...',resetChat:'Reset chat',loading:'Loading...',
-    parseBtn:'Fetch',parsing:'Fetching...',parseEmpty:'Enter a URL first',parseErr:'Fetch failed',parseDone:'Fetched! {n} assets inlined. Click Save to publish',
+    parseBtn:'Fetch',parsing:'Fetching...',parseEmpty:'Enter a URL first',parseErr:'Fetch failed',parseDone:'Fetched! {n} assets inlined. Click Save to publish',parseOpen:'Fetch URL',parseInputPh:'Enter URL...',
     // Modal
     details:'Details',fullscreen:'Fullscreen',exitFullscreen:'Exit fullscreen',fitWin:'Fit Window',run:'▶ Run',editAI:'✎ Edit with AI',
     editAILoaded:'Loaded project "{t}" source code ({n} chars). Tell me what to change and I\'ll modify on top of it.',editAIHint:'I want to modify the following project source code based on my next instructions:',
@@ -756,20 +761,22 @@ function resetSendBtn(){
   document.getElementById('stop-icon').style.display='none';
 }
 async function parseUrl(){
-  var u=(ci.value||'').trim();
+  var u=((document.getElementById('parse-input')||{}).value||'').trim();
+  if(!u)u=(ci.value||'').trim();
   if(!u){toast(t('parseEmpty'));return}
   if(!/^https?:\/\//i.test(u))u='https://'+u;
-  var btn=document.getElementById('parse-btn');
-  btn.disabled=true;var old=btn.textContent;btn.textContent=t('parsing');
+  var btns=[document.getElementById('parse-btn'),document.getElementById('parse-open-btn')].filter(Boolean);
+  var olds=btns.map(function(b){return b.textContent});
+  btns.forEach(function(b){b.disabled=true;b.textContent=t('parsing')});
   try{
     var r=await fetch('/api/fetch-url?url='+encodeURIComponent(u));
     var d=await r.json().catch(function(){return{ok:false,error:'bad response'}});
     if(!d.ok){toast(t('parseErr')+': '+(d.error||''));return}
     edh.value=d.html||'';edc.value=d.css||'';edj.value=d.js||'';
-    up();switchEditor('html');showPage('editor');toggleChat();
+    up();switchEditor('html');showPage('editor');
     toast(t('parseDone').replace('{n}',d.assets||0));
   }catch(e){toast(t('parseErr')+': '+e.message)}
-  finally{btn.disabled=false;btn.textContent=old}
+  finally{btns.forEach(function(b,i){b.disabled=false;b.textContent=olds[i]})}
 }
 async function sendMsg(){
   const txt=ci.value.trim();if(!txt||gen)return;
