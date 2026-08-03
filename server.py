@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """ShowCode HTTP server - port 3000"""
 import http.server, os, sys, json, re, random, threading, time, socket
+import gzip, io
 import urllib.request, urllib.error
 socket.setdefaulttimeout(None)  # 永不超时，AI 生成可不间断进行
 from urllib.parse import urlparse
@@ -82,8 +83,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def _send_json(self, code, payload, extra=None):
         body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+        gzipped = False
+        # 客户端支持 gzip 且响应足够大时压缩，避免大 JSON 走慢链路
+        if 'gzip' in self.headers.get('Accept-Encoding', '') and len(body) >= 1024:
+            buf = io.BytesIO()
+            with gzip.GzipFile(fileobj=buf, mode='wb', compresslevel=6) as gz:
+                gz.write(body)
+            body = buf.getvalue()
+            gzipped = True
         self.send_response(code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
+        if gzipped:
+            self.send_header('Content-Encoding', 'gzip')
         self.send_header('Content-Length', str(len(body)))
         if extra:
             for k, v in extra.items(): self.send_header(k, v)
@@ -142,6 +153,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if p.startswith('/v1/'): self._proxy_llm('GET')
         elif p == '/api/projects': self._send_json(200, load_projects(), {'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache'})
         elif p == '/api/suggestions': self._send_suggestions()
+        elif p == '/api/fetch-url': self._fetch_url()
         else: super().do_GET()
 
     def do_DELETE(self):
@@ -221,6 +233,143 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._send_json(200, {'ok': True, 'projects': projects, 'project': project})
         except Exception as e:
             self._send_json(500, {'ok': False, 'error': str(e)})
+
+    # ---------- 网址解析：抓取站点 HTML/CSS/JS 与素材，供前端「解析」功能 ----------
+    _FETCH_UA = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                 '(KHTML, like Gecko) Chrome/126.0 Safari/537.36')
+
+    def _fetch_url(self):
+        from urllib.parse import parse_qs
+        q = parse_qs(urlparse(self.path).query)
+        url = (q.get('url') or [''])[0].strip()
+        if not re.match(r'^https?://', url, re.I):
+            return self._send_json(400, {'ok': False, 'error': 'url 必须以 http(s):// 开头'})
+        host = urlparse(url).hostname or ''
+        try:
+            addrs = [a[4][0] for a in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)]
+        except Exception:
+            return self._send_json(502, {'ok': False, 'error': '域名解析失败'})
+        # 防 SSRF：拒绝内网/环回/保留地址
+        import ipaddress
+        for ip in addrs:
+            try:
+                if ipaddress.ip_address(ip).is_private or ipaddress.ip_address(ip).is_loopback \
+                        or ipaddress.ip_address(ip).is_reserved or ipaddress.ip_address(ip).is_link_local:
+                    return self._send_json(403, {'ok': False, 'error': '不允许解析内网地址'})
+            except ValueError:
+                pass
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': self._FETCH_UA,
+                'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8'})
+            resp = urllib.request.urlopen(req, timeout=20)
+            ctype = resp.headers.get('Content-Type', '')
+            raw = resp.read()
+            if 'html' not in ctype:
+                return self._send_json(200, {'ok': True, 'html': raw.decode('utf-8', 'replace'),
+                    'css': '', 'js': '', 'title': url, 'assets': 0, 'single': True, 'url': url})
+            html = raw.decode('utf-8', 'replace')
+        except urllib.error.HTTPError as e:
+            return self._send_json(502, {'ok': False, 'error': '目标站返回 HTTP %s' % e.code})
+        except Exception as e:
+            return self._send_json(502, {'ok': False, 'error': '抓取失败：%s' % str(e)})
+        try:
+            out = self._parse_site(html, url)
+            out['ok'] = True
+            self._send_json(200, out)
+        except Exception as e:
+            self._send_json(500, {'ok': False, 'error': '解析失败：%s' % str(e)})
+
+    def _parse_site(self, html, base_url):
+        """抓取外链 CSS/JS 合并到各自代码区；相对路径素材(图片/字体)下载转 base64 内联。"""
+        from urllib.parse import urljoin
+        import base64 as b64
+        assets = 0
+
+        def full(u):
+            return urljoin(base_url, u.strip()) if u.strip() and not u.strip().startswith(('data:', 'javascript:', '#')) else None
+
+        def inline(u, mime_hint=''):
+            """下载素材转 data URI；失败返回 None。"""
+            nonlocal assets
+            fu = full(u)
+            if not fu or fu.startswith('http') is False:
+                return None
+            try:
+                req = urllib.request.Request(fu, headers={'User-Agent': self._FETCH_UA})
+                r = urllib.request.urlopen(req, timeout=10)
+                d = r.read()
+                if len(d) > 4 * 1024 * 1024:
+                    return None
+                ct = r.headers.get('Content-Type', mime_hint).split(';')[0].strip() or mime_hint
+                if ct and not ct.startswith(('image/', 'font/', 'application/octet')):
+                    return None
+                assets += 1
+                return 'data:' + (ct or 'application/octet-stream') + ';base64,' + b64.b64encode(d).decode('ascii')
+            except Exception:
+                return None
+
+        title = ''
+        m = re.search(r'<title[^>]*>([^<]*)</title>', html, re.I | re.S)
+        if m:
+            title = m.group(1).strip()
+
+        # 1) 外链 CSS：抓内容合并，并从 HTML 移除 link 标签
+        css_parts = []
+        for st in re.findall(r'<style[^>]*>([\s\S]*?)</style>', html, re.I):
+            css_parts.append(st)
+        for lm in re.finditer(r'<link[^>]*rel=["\']stylesheet["\'][^>]*>', html, re.I):
+            tag = lm.group(0)
+            hm = re.search(r'href=["\']([^"\']+)["\']', tag, re.I)
+            if not hm:
+                continue
+            fu = full(hm.group(1))
+            if not fu or fu.startswith('http') is False:
+                continue
+            try:
+                req = urllib.request.Request(fu, headers={'User-Agent': self._FETCH_UA})
+                r = urllib.request.urlopen(req, timeout=10)
+                ct = r.headers.get('Content-Type', '')
+                d = r.read()
+                if 'css' in ct or fu.endswith('.css') or 'text/plain' in ct:
+                    css_parts.append(d.decode('utf-8', 'replace'))
+                    html = html.replace(tag, '')
+            except Exception:
+                pass
+        # CSS 内相对素材转 base64
+        css = '\n'.join(css_parts)
+        css = re.sub(r'url\(\s*["\']?([^"\')\s]+)["\']?\s*\)',
+                     lambda mm: ('url("' + (inline(mm.group(1), 'image/*') or mm.group(0)[4:-1]) + '")'), css)
+
+        # 2) 外链 JS：抓内容合并，并从 HTML 移除 script[src]
+        js_parts = []
+        for sm in re.finditer(r'<script[^>]*src=["\']([^"\']+)["\'][^>]*>\s*</script>', html, re.I):
+            fu = full(sm.group(1))
+            if not fu or fu.startswith('http') is False:
+                continue
+            try:
+                req = urllib.request.Request(fu, headers={'User-Agent': self._FETCH_UA})
+                r = urllib.request.urlopen(req, timeout=10)
+                ct = r.headers.get('Content-Type', '')
+                d = r.read()
+                if 'javascript' in ct or 'ecmascript' in ct or fu.endswith('.js') or 'text/plain' in ct:
+                    js_parts.append(d.decode('utf-8', 'replace'))
+                    html = html.replace(sm.group(0), '')
+            except Exception:
+                pass
+        js = '\n'.join(js_parts)
+
+        # 3) HTML 内相对素材(<img src> 等)转 base64
+        def img_inline(mm):
+            u = mm.group(1)
+            if u.startswith(('data:', 'http:', 'https:', '//', '#')):
+                return mm.group(0)
+            d = inline(u, 'image/*')
+            return mm.group(0).replace(mm.group(1), d) if d else mm.group(0)
+
+        html = re.sub(r'(<img[^>]*\ssrc=)["\']([^"\']+)["\']', lambda mm: img_inline(mm), html, flags=re.I)
+
+        return {'html': html, 'css': css, 'js': js, 'title': title, 'assets': assets, 'url': base_url}
+
 
 if __name__ == '__main__':
     httpd = http.server.ThreadingHTTPServer((os.environ.get('SHOWCODE_BIND', '127.0.0.1'), PORT), Handler)
