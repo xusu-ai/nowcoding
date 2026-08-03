@@ -32,7 +32,10 @@ sudo ./deploy.sh
 
 ```
 showcode/
-├── index.html               # 主页面 - 代码编辑器与展示界面
+├── index.html               # 首页 - 快兔算力导航页
+├── ui.html            # 主应用 - 代码编辑器与展示界面
+├── quota.html               # 我的算力额度（占位页）
+├── guide.html               # 算力接入指南（占位页）
 ├── server.py                # Python 后端（标准库，处理 /api/save）
 ├── projects/                # 保存的作品落盘目录（自动创建）
 ├── nginx.showcode.conf      # nginx 站点配置（新服务器一键软链）

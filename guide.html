@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>算力接入指南 - 快兔算力</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --accent:#e79aa8;
+  --bg:#faf6f1;--surface:#fff;--border:#f1e5de;
+  --text:#5c5650;--text2:#a79a90;--text3:#c6bab0;
+  --radius-sm:6px;--radius:8px;--radius-lg:10px;
+  --mono:'SF Mono',ui-monospace,'JetBrains Mono','Cascadia Code',monospace;
+}
+html{overflow-y:scroll}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+
+/* Nav */
+.nav{height:50px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;position:sticky;top:0;z-index:100}
+.nav-inner{max-width:1120px;width:100%;margin:0 auto;display:flex;align-items:center;gap:14px;overflow:hidden}
+.nav-logo{display:flex;align-items:center;gap:0;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.nav-logo .name{font-size:15px;font-weight:800;letter-spacing:-.3px;color:var(--accent)}
+.nav-logo .name-gray{font-size:15px;font-weight:800;letter-spacing:-.3px;color:var(--text)}
+.nav-quota{padding:5px 10px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:500;color:var(--text2);transition:all .15s;white-space:nowrap;flex-shrink:0}
+.nav-quota:hover{background:#f3f4f6;color:var(--text)}
+.nav-links{display:flex;gap:2px;flex-shrink:0}
+.nav-links a{padding:5px 12px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:500;color:var(--text2);transition:all .15s}
+.nav-links a.active{color:var(--text);background:#f3f4f6}
+.nav-links a:hover{background:#f3f4f6;color:var(--text)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:6px;flex-shrink:1;min-width:0;justify-content:flex-end}
+.nav-btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:var(--radius);font-size:12.5px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.nav-btn.primary{background:var(--accent);color:#fff}
+.nav-btn.primary:hover{box-shadow:0 2px 10px rgba(231,154,168,.4)}
+.nav-btn.ghost{background:transparent;color:var(--text2);padding:0 8px}
+.nav-btn.ghost:hover{background:#f3f4f6;color:var(--text)}
+.nav-btn.btn-lang{color:var(--text3)}
+.nav-btn.btn-lang.active{color:var(--text)}
+.nav-btn.btn-lang.active svg{stroke:var(--text)}
+
+/* Page */
+.main{max-width:1120px;width:100%;margin:0 auto;padding:32px 20px 48px;flex:1}
+.kicker{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:2px;color:var(--text3);margin-bottom:10px;text-transform:uppercase}
+.kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
+.page-head h1{font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
+.page-head p{font-size:13px;line-height:1.7;color:var(--text2)}
+.access-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px 22px;margin-top:20px}
+.access-card h2{font-size:15px;font-weight:700;margin-bottom:14px;letter-spacing:-.2px}
+.access-row{display:flex;align-items:baseline;gap:6px;font-size:13px;line-height:1.9;flex-wrap:wrap}
+.access-row b{color:var(--text);font-weight:600;white-space:nowrap}
+.access-row code{font-family:var(--mono);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-size:12px;color:var(--text)}
+.access-row a{color:var(--accent);font-weight:600;text-decoration:none;border-bottom:1px solid transparent}
+.access-row a:hover{border-bottom-color:var(--accent)}
+.access-models{margin-top:12px;font-size:13px;line-height:1.8;color:var(--text)}
+.price-list{list-style:none;margin:10px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:4px 20px}
+.price-list li{font-size:12.5px;color:var(--text2);display:flex;justify-content:space-between;gap:12px;padding:6px 10px;border-radius:6px}
+.price-list li:nth-child(odd){background:var(--bg)}
+.price-list li b{font-family:var(--mono);color:var(--text);font-weight:600}
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;overflow-x:auto;margin-top:10px}
+.code-block code{font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--text);white-space:pre}
+.endpoint-list{list-style:none;margin:10px 0 0;display:flex;flex-direction:column;gap:4px}
+.endpoint-list li{font-size:12.5px;color:var(--text2);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:5px 10px;border-radius:6px;background:var(--bg)}
+.endpoint-list li code{font-family:var(--mono);font-size:12px;color:var(--text);background:#fff;border:1px solid var(--border);border-radius:5px;padding:1px 6px}
+
+/* Footer */
+.foot{flex-shrink:0;border-top:1px solid var(--border);background:var(--surface);padding:14px 20px;text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;color:var(--text3);text-transform:uppercase}
+
+@media(max-width:768px){.nav-links{display:none}}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="index.html"><span class="name-gray">Show</span><span class="name">Coding.cn</span></a>
+    <a class="nav-quota" href="quota.html" data-i18n="navQuota">我的算力额度</a>
+    <div class="nav-links">
+      <a class="active" href="guide.html" data-i18n="navGuide">算力接入指南</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-btn ghost btn-lang" id="btn-lang" onclick="toggleLang()" data-i18n-title="switchLang" title="切换语言">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+      </button>
+      <a class="nav-btn primary" href="ui.html" data-i18n="startCoding">开始编程 →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Page -->
+<main class="main">
+  <div class="kicker"><span class="dot"></span><span data-i18n="ready">SYSTEM READY</span></div>
+  <div class="page-head">
+    <h1 data-i18n="navGuide">算力接入指南</h1>
+    <p data-i18n="guideDesc">获取 API 密钥、配置环境、调用示例与常见问题。</p>
+  </div>
+  <section class="access-card">
+    <h2 data-i18n="accessTitle">大模型接入方式（最简介绍）</h2>
+    <div class="access-row"><b data-i18n="accessEndpoint">模型接入地址：</b><code>https://api.showcoding.cn/v1</code></div>
+    <div class="access-row"><b data-i18n="accessKey">接入密钥：</b><span data-i18n="accessKeyVal">淘宝工作人员私信发你的 API Key</span></div>
+    <div class="access-row"><b data-i18n="accessShop">淘宝店：</b><a href="https://shop391133326.taobao.com/" target="_blank" rel="noopener">快兔算力</a></div>
+    <div class="access-row"><b data-i18n="accessQuery">查询额度使用情况：</b><a href="quota.html" data-i18n="accessQueryVal">点击「我的算力」，输入自己的 API Key，即可查询</a></div>
+    <p class="access-models" data-i18n="accessModels">支持模型：根据你购买的套餐来提供，本站能支持模型以及单次调用的价格如下：</p>
+    <ul class="price-list">
+      <li>DeepSeek V4 Flash<b>¥0.0027</b></li>
+      <li>DS4F<b>¥0.0027</b></li>
+      <li>Macaron-V1-Tall<b>¥0.0027</b></li>
+      <li>DeepSeek V4 Pro<b>¥0.025</b></li>
+      <li>GLM-5.2<b>¥0.10</b></li>
+      <li>Kimi K3<b>¥0.86</b></li>
+    </ul>
+  </section>
+  <section class="access-card">
+    <h2 data-i18n="exTitle">模型使用示例（curl · OpenAI 兼容接入）</h2>
+    <div class="access-row"><b data-i18n="exBase">接入地址：</b><code>https://api.showcoding.cn/v1</code></div>
+    <div class="access-row"><b data-i18n="exAuth">认证方式：</b><span data-i18n="exAuthVal">你的 API Key</span></div>
+    <div class="access-row"><b data-i18n="exModelsList">模型列表：</b><code>GET /v1/models</code></div>
+    <div class="code-block"><code>curl https://api.showcoding.cn/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer  你的 API Key" \
+  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"你好"}]}'</code></div>
+    <p class="access-models" data-i18n="exEndpoints">支持的接口（OpenAI 兼容）：</p>
+    <ul class="endpoint-list">
+      <li><code>GET  /v1/models</code><span data-i18n="exModels">模型列表（无需 Key）</span></li>
+      <li><code>POST /v1/chat/completions</code><span data-i18n="exChat">对话补全（支持流式）</span></li>
+      <li><code>GET  /v1/usage</code><span data-i18n="exUsage">查询额度与用量</span></li>
+      <li><code>POST /v1/embeddings</code><span data-i18n="exEmb">向量嵌入（当前上游模型暂不支持，仅限本地 mock）</span></li>
+    </ul>
+  </section>
+  <section class="access-card">
+    <h2 data-i18n="trialTitle">1元试用用户 API Key</h2>
+    <div class="access-row"><b data-i18n="trialReq">请求限额：</b><span>100 次</span></div>
+    <div class="access-row"><b data-i18n="trialTok">Token 限额：</b><span>10,000,000</span></div>
+    <div class="access-row"><b data-i18n="trialExp">有效期：</b><span data-i18n="trialExpVal">自购买之日起 7 天</span></div>
+  </section>
+  <section class="access-card">
+    <h2 data-i18n="monthlyTitle">80元包月用户 API Key</h2>
+    <div class="access-row"><b data-i18n="mH5">5小时限额：</b><span>80 元</span></div>
+    <div class="access-row"><b data-i18n="mWeek">每周限额：</b><span>200 元</span></div>
+    <div class="access-row"><b data-i18n="mMonth">每月限额：</b><span>400 元</span></div>
+    <div class="access-row"><b data-i18n="mExp">有效期：</b><span data-i18n="mExpVal">自购买之日起 30 天</span></div>
+  </section>
+</main>
+
+<!-- Footer -->
+<footer class="foot"><span data-i18n="brand">快兔算力</span> · 2026</footer>
+
+<script>
+const LK='kuaitu_lang';
+let lang='zh';
+const i18n={
+  zh:{
+    brand:'快兔算力',ready:'系统就绪',navQuota:'我的算力',navGuide:'算力接入指南',switchLang:'切换语言',startCoding:'开始编程 →',
+    guideDesc:'获取 API 密钥、配置环境、调用示例与常见问题。',
+    accessTitle:'大模型接入方式（最简介绍）',accessEndpoint:'模型接入地址：',accessKey:'接入密钥：',accessKeyVal:'淘宝工作人员私信发你的 API Key',accessShop:'淘宝店：',accessQuery:'查询额度使用情况：',accessQueryVal:'点击「我的算力」，输入自己的 API Key，即可查询',
+    accessModels:'支持模型：根据你购买的套餐来提供，本站能支持模型以及单次调用的价格如下：',
+    trialTitle:'1元试用用户 API Key',trialReq:'请求限额：',trialTok:'Token 限额：',trialExp:'有效期：',trialExpVal:'自购买之日起 7 天',
+    monthlyTitle:'80元包月用户 API Key',mH5:'5小时限额：',mWeek:'每周限额：',mMonth:'每月限额：',mExp:'有效期：',mExpVal:'自购买之日起 30 天',
+    exTitle:'模型使用示例（curl · OpenAI 兼容接入）',exBase:'接入地址：',exAuth:'认证方式：',exAuthVal:'你的 API Key',exModelsList:'模型列表：',
+    exEndpoints:'支持的接口（OpenAI 兼容）：',exModels:'模型列表（无需 Key）',exChat:'对话补全（支持流式）',exUsage:'查询额度与用量',exEmb:'向量嵌入（当前上游模型暂不支持，仅限本地 mock）'
+  },
+  en:{
+    brand:'Kuaitu',ready:'System Ready',navQuota:'My Compute',navGuide:'Access Guide',switchLang:'Switch language',startCoding:'Start Coding →',
+    guideDesc:'API keys, setup, code samples and FAQs.',
+    accessTitle:'LLM Access (Quick Start)',accessEndpoint:'Endpoint:',accessKey:'API Key:',accessKeyVal:'Sent to you privately by our Taobao staff',accessShop:'Taobao shop:',accessQuery:'Check quota:',accessQueryVal:'Click "My Compute", enter your API Key to check usage',
+    accessModels:'Models: provided per your purchased plan. Supported models and per-call price:',
+    trialTitle:'1-Yuan Trial API Key',trialReq:'Request limit:',trialTok:'Token limit:',trialExp:'Validity:',trialExpVal:'7 days from purchase',
+    monthlyTitle:'¥80 Monthly API Key',mH5:'5-hour limit:',mWeek:'Weekly limit:',mMonth:'Monthly limit:',mExp:'Validity:',mExpVal:'30 days from purchase',
+    exTitle:'Usage Examples (curl · OpenAI-compatible)',exBase:'Base URL:',exAuth:'Auth:',exAuthVal:'your API Key',exModelsList:'Models list:',
+    exEndpoints:'Supported endpoints (OpenAI-compatible):',exModels:'List models (no Key required)',exChat:'Chat completions (streaming supported)',exUsage:'Check quota & usage',exEmb:'Embeddings (upstream models not supported yet, mock only)'
+  }
+};
+function t(k){return i18n[lang][k]||k}
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=t(el.getAttribute('data-i18n'))});
+  document.querySelectorAll('[data-i18n-title]').forEach(el=>{el.title=t(el.getAttribute('data-i18n-title'))});
+  document.getElementById('btn-lang').classList.toggle('active',lang==='en');
+  document.documentElement.lang=lang;document.title=t('brand')+' - '+t('navGuide');
+}
+function toggleLang(){lang=lang==='zh'?'en':'zh';localStorage.setItem(LK,lang);applyLang()}
+try{const s=localStorage.getItem(LK);if(s==='en'||s==='zh')lang=s}catch(e){}
+applyLang();
+</script>
+</body>
+</html>

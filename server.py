@@ -1,15 +1,59 @@
 #!/usr/bin/env python3
 """ShowCode HTTP server - port 3000"""
-import http.server, os, sys, json, re, random
+import http.server, os, sys, json, re, random, threading, time, socket
 import urllib.request, urllib.error
+socket.setdefaulttimeout(None)  # 永不超时，AI 生成可不间断进行
 from urllib.parse import urlparse
 from datetime import datetime
 
-PORT = 3000
+PORT = int(os.environ.get('SHOWCODE_PORT', 3000))
 DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECTS_DIR = os.path.join(DIR, 'projects')
 PROJECTS_JSON = os.path.join(PROJECTS_DIR, 'projects.json')
-UPSTREAM_LLM = 'http://127.0.0.1:8104'
+UPSTREAM_LLM = 'http://127.0.0.1:8106'
+MODEL_ROUTES = {
+    'Macaron-V1-Tall': 'http://127.0.0.1:8106',
+}
+
+def _upstream_for(model):
+    return MODEL_ROUTES.get(model, UPSTREAM_LLM)
+
+def _llm_call(prompt, temp=0.95, model='Macaron-V1-Tall', max_tokens=8192):
+    upstream = _upstream_for(model)
+    body = json.dumps({'model': model, 'messages': [{'role': 'user', 'content': prompt}],
+        'temperature': temp, 'max_tokens': max_tokens, 'stream': False}).encode('utf-8')
+    req = urllib.request.Request(upstream + '/v1/chat/completions', data=body,
+        headers={'Content-Type': 'application/json', 'Content-Length': str(len(body))}, method='POST')
+    msg = json.loads(urllib.request.urlopen(req, timeout=120).read().decode())['choices'][0]['message']
+    return msg.get('content') or msg.get('reasoning_content') or ''
+
+SUGGESTION_FB = {
+    'zh': ['做一个霓虹灯登录页面','生成一个瀑布流图片展示页','创建一个贪吃蛇游戏','画一个粒子动画背景'],
+    'en': ['Make a neon glow login page','Create a waterfall image gallery','Build a Snake game','Make a particle animation background'],
+}
+_sug_cache = {'zh': None, 'en': None, 'lock': threading.Lock()}
+
+def _gen_suggestions(lang):
+    is_zh = lang.startswith('zh')
+    prompt = ('Generate 4 short creative web project ideas for an online code playground (seed={}). '
+        'Keep each under 60 chars. Use HTML+CSS+JS. Respond in {}. '
+        'Return ONLY a JSON array of 4 strings: ["a","b","c","d"]. No markdown.'
+    ).format(random.randint(1, 99999), 'Chinese' if is_zh else 'English')
+    try:
+        text = _llm_call(prompt, model='Macaron-V1-Tall').strip()
+        if text.startswith('```'): text = text.split('\n', 1)[1] if '\n' in text else text.replace('```', '').strip()
+        if text.endswith('```'): text = text[:-3].strip()
+        s = json.loads(text)
+        if isinstance(s, list) and len(s) >= 4: return s[:4]
+    except Exception:
+        pass
+    return SUGGESTION_FB['zh' if is_zh else 'en']
+
+def _refresh_suggestions(lang):
+    s = _gen_suggestions(lang)
+    with _sug_cache['lock']:
+        _sug_cache[lang] = s
+    return s
 
 def safe_name(s):
     s = re.sub(r'[\\/:*?"<>|\n\r\t]', '', s or '').strip()
@@ -31,6 +75,7 @@ def _qs(query):
     return {k: v for k, v in (p.split('=', 1) for p in query.split('&') if '=' in p)}
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIR, **kwargs)
     def log_message(self, *a): pass
@@ -45,45 +90,49 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _llm_call(self, prompt, temp=0.95):
-        body = json.dumps({'model': 'DeepSeek-V4-Flash', 'messages': [{'role': 'user', 'content': prompt}],
-            'temperature': temp, 'max_tokens': 500, 'stream': False}).encode('utf-8')
-        req = urllib.request.Request(UPSTREAM_LLM + '/v1/chat/completions', data=body,
-            headers={'Content-Type': 'application/json'}, method='POST')
-        return json.loads(urllib.request.urlopen(req, timeout=30).read().decode())['choices'][0]['message']['content']
-
-    def _proxy_llm(self, method, upstream_path=None):
+    def _proxy_llm(self, method, upstream_path=None, upstream=None, body=None):
         parsed = urlparse(self.path)
         path = upstream_path or parsed.path
-        target = UPSTREAM_LLM + path + ('?' + parsed.query if parsed.query else '')
-        length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(length) if length > 0 else None
+        base = upstream or UPSTREAM_LLM
+        target = base + path + ('?' + parsed.query if parsed.query else '')
+        if body is None:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length) if length > 0 else None
         headers = {k: v for k, v in self.headers.items()
                    if k.lower() not in ('host', 'connection', 'transfer-encoding', 'content-length')}
         req = urllib.request.Request(target, data=body, headers=headers, method=method)
+        sent_headers = False
         try:
-            resp = urllib.request.urlopen(req, timeout=120)
+            resp = urllib.request.urlopen(req, timeout=600)
             self.send_response(resp.status)
             self.send_header('Transfer-Encoding', 'chunked')
             for k, v in resp.headers.items():
                 if k.lower() not in ('transfer-encoding', 'content-length', 'connection'):
                     self.send_header(k, v)
             self.end_headers()
+            sent_headers = True
             while True:
                 line = resp.readline()
                 if not line:
-                    self.wfile.write(b'0\r\n\r\n'); break
+                    self.wfile.write(b'0\r\n\r\n'); self.wfile.flush(); break
                 self.wfile.write(format(len(line), 'x').encode() + b'\r\n' + line + b'\r\n')
                 self.wfile.flush()
         except urllib.error.HTTPError as e:
             b = e.read()
-            self.send_response(e.code)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(b)))
-            self.end_headers()
-            self.wfile.write(b)
+            if sent_headers:
+                self.wfile.write(b'0\r\n\r\n'); self.wfile.flush()
+            else:
+                self.send_response(e.code)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
         except Exception as e:
-            self._send_json(502, {'error': 'Upstream unavailable: ' + str(e)})
+            if sent_headers:
+                try: self.wfile.write(b'0\r\n\r\n'); self.wfile.flush()
+                except Exception: pass
+            else:
+                self._send_json(502, {'error': 'Upstream unavailable: ' + str(e)})
 
     def do_OPTIONS(self):
         self._send_json(200, {}, {'Allow': 'GET, POST, DELETE, OPTIONS'}) if urlparse(self.path).path.startswith('/api/') else super().do_OPTIONS()
@@ -91,7 +140,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         p = urlparse(self.path).path
         if p.startswith('/v1/'): self._proxy_llm('GET')
-        elif p == '/api/projects': self._send_json(200, load_projects())
+        elif p == '/api/projects': self._send_json(200, load_projects(), {'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache'})
         elif p == '/api/suggestions': self._send_suggestions()
         else: super().do_GET()
 
@@ -110,28 +159,31 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         p = urlparse(self.path).path
         if p.startswith('/v1/'): self._proxy_llm('POST')
-        elif p == '/api/chat': self._proxy_llm('POST', '/v1/chat/completions')
+        elif p == '/api/chat':
+            upstream = None
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                raw = self.rfile.read(length) if length > 0 else b''
+                body_obj = json.loads(raw) if raw else {}
+                upstream = _upstream_for(body_obj.get('model', ''))
+                self._proxy_llm('POST', '/v1/chat/completions', upstream=upstream, body=raw)
+            except Exception:
+                self._send_json(400, {'ok': False, 'error': 'bad chat body'})
         elif p == '/api/save': self._save_project()
         else: self._send_json(404, {'ok': False, 'error': 'not found'})
 
     def _send_suggestions(self):
-        lang = _qs(urlparse(self.path).query).get('lang', 'zh')
-        is_zh = lang.startswith('zh')
-        fb = ['做一个霓虹灯登录页面','生成一个瀑布流图片展示页','创建一个贪吃蛇游戏','画一个粒子动画背景'] if is_zh \
-            else ['Make a neon glow login page','Create a waterfall image gallery','Build a Snake game','Make a particle animation background']
-        try:
-            prompt = ('Generate 4 short creative web project ideas for an online code playground (seed={}). '
-                'Keep each under 60 chars. Use HTML+CSS+JS. Respond in {}. '
-                'Return ONLY a JSON array of 4 strings: ["a","b","c","d"]. No markdown.'
-            ).format(random.randint(1, 99999), 'Chinese' if is_zh else 'English')
-            text = self._llm_call(prompt).strip()
-            if text.startswith('```'): text = text.split('\n', 1)[1] if '\n' in text else text.replace('```', '').strip()
-            if text.endswith('```'): text = text[:-3].strip()
-            s = json.loads(text)
-            if not isinstance(s, list) or len(s) < 4: raise ValueError
-            self._send_json(200, s[:4], {'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache'})
-        except Exception:
-            self._send_json(200, fb)
+        q = _qs(urlparse(self.path).query)
+        lang = 'zh' if q.get('lang', 'zh').startswith('zh') else 'en'
+        if q.get('refresh') == '1':
+            s = _refresh_suggestions(lang)
+        else:
+            with _sug_cache['lock']:
+                s = _sug_cache[lang]
+            if not s:
+                threading.Thread(target=_refresh_suggestions, args=(lang,), daemon=True).start()
+                s = SUGGESTION_FB[lang]
+        self._send_json(200, s, {'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache'})
 
     def _save_project(self):
         try:
@@ -171,6 +223,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._send_json(500, {'ok': False, 'error': str(e)})
 
 if __name__ == '__main__':
-    httpd = http.server.ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
+    httpd = http.server.ThreadingHTTPServer((os.environ.get('SHOWCODE_BIND', '127.0.0.1'), PORT), Handler)
     print("ShowCode server running on http://0.0.0.0:{}".format(PORT), flush=True)
     httpd.serve_forever()

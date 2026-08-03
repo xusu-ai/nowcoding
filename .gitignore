@@ -3,3 +3,7 @@ projects/
 projects.json
 __pycache__/
 *.pyc
+
+# Reasonix editor backups
+*.bak.*
+*.bak

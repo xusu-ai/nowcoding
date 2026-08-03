@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的算力额度 - 快兔算力</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --accent:#e79aa8;
+  --bg:#faf6f1;--surface:#fff;--border:#f1e5de;
+  --text:#5c5650;--text2:#a79a90;--text3:#c6bab0;
+  --green:#3d9a6d;--red:#d95f5f;--amber:#d9a03d;--amber-bg:#fdf6e8;
+  --radius-sm:6px;--radius:8px;--radius-lg:10px;
+  --mono:'SF Mono',ui-monospace,'JetBrains Mono','Cascadia Code',monospace;
+}
+html{overflow-y:scroll}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+
+/* Nav */
+.nav{height:50px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;position:sticky;top:0;z-index:100}
+.nav-inner{max-width:1120px;width:100%;margin:0 auto;display:flex;align-items:center;gap:14px;overflow:hidden}
+.nav-logo{display:flex;align-items:center;gap:0;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.nav-logo .name{font-size:15px;font-weight:800;letter-spacing:-.3px;color:var(--accent)}
+.nav-logo .name-gray{font-size:15px;font-weight:800;letter-spacing:-.3px;color:var(--text)}
+.nav-quota{padding:5px 10px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:500;color:var(--text2);transition:all .15s;white-space:nowrap;flex-shrink:0}
+.nav-quota.active{color:var(--text);background:#f3f4f6}
+.nav-quota:hover{background:#f3f4f6;color:var(--text)}
+.nav-links{display:flex;gap:2px;flex-shrink:0}
+.nav-links a{padding:5px 12px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:500;color:var(--text2);transition:all .15s}
+.nav-links a:hover{background:#f3f4f6;color:var(--text)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:6px;flex-shrink:1;min-width:0;justify-content:flex-end}
+.nav-btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:var(--radius);font-size:12.5px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.nav-btn.primary{background:var(--accent);color:#fff}
+.nav-btn.primary:hover{box-shadow:0 2px 10px rgba(231,154,168,.4)}
+.nav-btn.ghost{background:transparent;color:var(--text2);padding:0 8px}
+.nav-btn.ghost:hover{background:#f3f4f6;color:var(--text)}
+.nav-btn.btn-lang{color:var(--text3)}
+.nav-btn.btn-lang.active{color:var(--text)}
+.nav-btn.btn-lang.active svg{stroke:var(--text)}
+
+/* Page */
+.main{max-width:1120px;width:100%;margin:0 auto;padding:32px 20px 48px;flex:1}
+.kicker{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:2px;color:var(--text3);margin-bottom:10px;text-transform:uppercase}
+.kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
+.page-head h1{font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
+.page-head p{font-size:13px;line-height:1.7;color:var(--text2)}
+
+/* Query card */
+.qcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-top:20px}
+.qrow{display:flex;gap:10px;flex-wrap:wrap}
+.key-input{flex:1;min-width:280px;height:38px;padding:0 14px;border:1px solid var(--border);border-radius:var(--radius);font-family:var(--mono);font-size:12.5px;color:var(--text);background:#fdfbf8;outline:none;transition:border-color .15s}
+.key-input:focus{border-color:var(--accent)}
+.qbtn{height:38px;padding:0 22px;border:none;border-radius:var(--radius);background:var(--accent);color:#fff;font-size:13px;font-weight:600;transition:box-shadow .15s}
+.qbtn:hover{box-shadow:0 2px 10px rgba(231,154,168,.4)}
+.qbtn:disabled{opacity:.55;cursor:not-allowed}
+.qhint{font-size:11.5px;color:var(--text3);margin-top:8px;font-family:var(--mono)}
+
+/* Result */
+.result{display:none;margin-top:20px}
+.result.show{display:block}
+.banner{display:flex;align-items:center;gap:10px;border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;font-size:13px;font-weight:600;flex-wrap:wrap}
+.banner.ok{background:#f0f7f2;color:var(--green);border:1px solid #d8ecdf}
+.banner.warn{background:var(--amber-bg);color:var(--amber);border:1px solid #f3e2bd}
+.banner.err{background:#fdf0f0;color:var(--red);border:1px solid #f3d6d6}
+.banner .sp{flex:1}
+.banner .sub{font-size:11.5px;font-weight:400;color:var(--text2);width:100%;margin-top:2px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600}
+.pill.trial{background:#fdf6e8;color:#a97b1f;border:1px solid #f0e0bb}
+.pill.monthly{background:#f0f7f2;color:var(--green);border:1px solid #d8ecdf}
+.pill.key{background:#f3f1ed;color:var(--text2);border:1px solid var(--border);font-family:var(--mono);font-weight:400}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;margin-bottom:14px}
+.card h3{font-size:13px;font-weight:700;margin-bottom:12px;letter-spacing:-.2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.stat{background:#fdfbf8;border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
+.stat .l{font-size:11px;color:var(--text3);margin-bottom:4px}
+.stat .v{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.stat .v .u{font-size:11px;font-weight:500;color:var(--text2);margin-left:2px}
+.stat .s{font-size:11px;color:var(--text2);margin-top:3px}
+.bar{display:block;width:100%;height:5px;background:#f0ece6;border-radius:99px;overflow:hidden;margin-top:7px}
+.bar .fill{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#e79aa8,#d9a03d);transition:width .4s}
+.bar .fill.full{background:var(--red)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;padding:3px 11px;border-radius:99px;background:#fdfbf8;border:1px solid var(--border);font-family:var(--mono);font-size:11.5px;color:var(--text2)}
+.chip.all{color:var(--green);border-color:#d8ecdf;background:#f0f7f2}
+.warnlist{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.warnitem{font-size:12px;color:var(--amber);background:var(--amber-bg);border:1px solid #f3e2bd;border-radius:var(--radius);padding:8px 12px}
+
+/* Footer */
+.foot{flex-shrink:0;border-top:1px solid var(--border);background:var(--surface);padding:14px 20px;text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;color:var(--text3);text-transform:uppercase}
+
+@media(max-width:768px){.nav-links{display:none}}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="index.html"><span class="name-gray">Show</span><span class="name">Coding.cn</span></a>
+    <a class="nav-quota active" href="quota.html" data-i18n="navQuota">我的算力额度</a>
+    <div class="nav-links">
+      <a href="guide.html" data-i18n="navGuide">算力接入指南</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-btn ghost btn-lang" id="btn-lang" onclick="toggleLang()" data-i18n-title="switchLang" title="切换语言">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+      </button>
+      <a class="nav-btn primary" href="ui.html" data-i18n="startCoding">开始编程 →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Page -->
+<main class="main">
+  <div class="kicker"><span class="dot"></span><span data-i18n="ready">SYSTEM READY</span></div>
+  <div class="page-head">
+    <h1 data-i18n="navQuota">我的算力额度</h1>
+    <p data-i18n="quotaDesc">查看额度与用量明细，掌握账户余额，合理规划计算资源。</p>
+  </div>
+
+  <div class="qcard">
+    <div class="qrow">
+      <input class="key-input" id="keyInput" placeholder="sk-trial-…" autocomplete="off" spellcheck="false" />
+      <button class="qbtn" id="qBtn" data-i18n="query">查询额度</button>
+    </div>
+    <div class="qhint" data-i18n="hint">输入你接入时使用的 API Key，例如 sk-trial-xxxxxxxx…（可在 key 管理后台查看）</div>
+  </div>
+
+  <div class="result" id="result"></div>
+</main>
+
+<!-- Footer -->
+<footer class="foot"><span data-i18n="brand">快兔算力</span> · 2026</footer>
+
+<script>
+const API = 'https://api.showcoding.cn/v1/usage';
+const LK='kuaitu_lang';
+let lang='zh';
+const i18n={
+  zh:{
+    brand:'快兔算力',ready:'系统就绪',navQuota:'我的算力',navGuide:'算力接入指南',switchLang:'切换语言',startCoding:'开始编程 →',
+    quotaDesc:'查看额度与用量明细，掌握账户余额，合理规划计算资源。',
+    hint:'输入你接入时使用的 API Key，例如 sk-trial-xxxxxxxx…（可在 key 管理后台查看）',
+    query:'查询额度',querying:'查询中…',invalid:'无效的 API Key，请检查后重试',netErr:'网络请求失败，请稍后重试',
+    statusActive:'账户正常',statusExpired:'已到期',statusExhausted:'配额已用完',statusDisconnected:'已断联（限额超限）',
+    planTrial:'1元试用',planMonthly:'80元包月',
+    aliasOf:'用户别名',validUntil:'有效期至',daysLeft:'剩余 {n} 天',expiredSince:'已于 {d} 到期',
+    usageTitle:'用量总览',reqs:'请求次数',toks:'Token 用量',cost:'累计成本',
+    limitTitle:'套餐额度',noLimit:'不限',reqLimit:'限额{n}次调用',tokLimit:'限额{n} token',monthlyTitle:'包月限额（人民币）',h5:'5小时',week:'每周',month:'每月',
+    modelsTitle:'可用模型',allModels:'全部模型',warnTitle:'用量提醒',
+    detailTitle:'消费明细',recent:'最近消费',noRecent:'暂无消费记录',
+  },
+  en:{
+    brand:'Kuaitu',ready:'System Ready',navQuota:'My Compute',navGuide:'Access Guide',switchLang:'Switch language',startCoding:'Start Coding →',
+    quotaDesc:'Check quota and usage. Track balance and plan resources.',
+    hint:'Enter the API key you use, e.g. sk-trial-xxxxxxxx… (see your key dashboard)',
+    query:'Check Quota',querying:'Checking…',invalid:'Invalid API key, please try again',netErr:'Network error, please retry later',
+    statusActive:'Active',statusExpired:'Expired',statusExhausted:'Quota exhausted',statusDisconnected:'Disconnected (limit exceeded)',
+    planTrial:'Trial ¥1',planMonthly:'Monthly ¥80',
+    aliasOf:'Alias',validUntil:'Valid until',daysLeft:'{n} days left',expiredSince:'Expired on {d}',
+    usageTitle:'Usage Overview',reqs:'Requests',toks:'Tokens',cost:'Total Cost',
+    limitTitle:'Plan Limits',noLimit:'Unlimited',reqLimit:'Limit {n} calls',tokLimit:'Limit {n} tokens',monthlyTitle:'Monthly Limits (RMB)',h5:'5h',week:'Weekly',month:'Monthly',
+    modelsTitle:'Allowed Models',allModels:'All models',warnTitle:'Usage Warning',
+    detailTitle:'Spending',recent:'Recent',noRecent:'No spend records yet',
+  }
+};
+function t(k,sub){let s=(i18n[lang][k]||k);for(const key in (sub||{}))s=s.replace('{'+key+'}',sub[key]);return s}
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=t(el.getAttribute('data-i18n'))});
+  document.querySelectorAll('[data-i18n-title]').forEach(el=>{el.title=t(el.getAttribute('data-i18n-title'))});
+  document.getElementById('btn-lang').classList.toggle('active',lang==='en');
+  document.documentElement.lang=lang;document.title=t('brand')+' - '+t('navQuota');
+}
+function toggleLang(){lang=lang==='zh'?'en':'zh';localStorage.setItem(LK,lang);applyLang()}
+try{const s=localStorage.getItem(LK);if(s==='en'||s==='zh')lang=s}catch(e){}
+applyLang();
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>Number(n||0).toLocaleString(lang==='zh'?'zh-CN':'en-US');
+const pct=(used,lim)=>lim?Math.min(100,(used/lim)*100):0;
+const barCls=pp=>pp>=90?'full':pp>=80?'warn':'';
+
+function statusBadge(s){
+  if(s==='expired')return '<span class="banner err">'+t('statusExpired')+'</span>';
+  if(s==='exhausted')return '<span class="banner err">'+t('statusExhausted')+'</span>';
+  if(s==='disconnected')return '<span class="banner err">'+t('statusDisconnected')+'</span>';
+  return '<span class="banner ok">'+t('statusActive')+'</span>';
+}
+function statHTML(label,val,unit,extra,used,lim){
+  const pp=pct(used,lim);
+  const bar=lim?(pp===undefined?'':'<span class="bar"><span class="fill '+barCls(pp)+'" style="width:'+Math.round(pp)+'%"></span></span>'):'';
+  return '<div class="stat"><div class="l">'+label+'</div><div class="v">'+val+(unit?'<span class="u">'+unit+'</span>':'')+'</div>'+(extra?'<div class="s">'+extra+'</div>':'')+bar+'</div>';
+}
+
+async function query(){
+  const key=document.getElementById('keyInput').value.trim();
+  const btn=document.getElementById('qBtn');
+  const res=document.getElementById('result');
+  if(!key){res.className='result show';res.innerHTML='<div class="card" style="color:var(--text2)">'+t('invalid')+'</div>';return}
+  btn.disabled=true;btn.textContent=t('querying');
+  try{
+    const r=await fetch(API,{headers:{'Authorization':'Bearer '+key}});
+    if(!r.ok){res.className='result show';res.innerHTML='<div class="card" style="color:var(--text2)">'+(r.status===401?t('invalid'):t('netErr'))+'</div>';return}
+    const d=await r.json();
+    res.className='result show';
+    const isM=d.plan==='monthly';
+    const now=Date.now();
+    const daysLeft=Math.max(0,Math.ceil((d.expires_at-now)/86400000));
+    const expTxt=daysLeft>0?t('daysLeft',{n:daysLeft}):t('expiredSince',{d:new Date(d.expires_at).toLocaleDateString()});
+    const spend=d.usage.spend;
+    let html='';
+    html+=statusBadge(d.status);
+    if(d.warning&&d.warning.length){
+      html+='<div class="warnlist">'+d.warning.map(w=>'<div class="warnitem">⚠ '+esc(w)+'</div>').join('')+'</div>';
+    }
+    html+='<div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
+      +'<span class="pill '+(isM?'monthly':'trial')+'">'+(isM?t('planMonthly'):t('planTrial'))+'</span>'
+      +'<span class="pill key">'+esc(d.key_masked)+'</span>'
+      +(d.alias?'<span class="pill key">'+esc(d.alias)+'</span>':'')
+      +'</div>'
+      +'<div class="grid">'
+      +statHTML(t('reqs'),fmt(d.usage.requests),'',isM?t('noLimit'):t('reqLimit',{n:fmt(d.limits.requests)}),d.usage.requests,isM?undefined:d.limits.requests)
+      +statHTML(t('toks'),fmt(d.usage.tokens),'',isM?t('noLimit'):t('tokLimit',{n:fmt(d.limits.tokens)}),d.usage.tokens,isM?undefined:d.limits.tokens)
+      +statHTML(t('validUntil'),new Date(d.expires_at).toLocaleDateString(),'',expTxt)
+      +'</div></div>';
+    if(isM&&spend){
+      const ml=d.limits.monthly;
+      html+='<div class="card"><h3>'+t('monthlyTitle')+'</h3><div class="grid">'
+        +statHTML(t('h5'),'¥'+spend.h5.toFixed(2),'','/ ¥'+ml.h5,spend.h5,ml.h5)
+        +statHTML(t('week'),'¥'+spend.week.toFixed(2),'','/ ¥'+ml.week,spend.week,ml.week)
+        +statHTML(t('month'),'¥'+spend.month.toFixed(2),'','/ ¥'+ml.month,spend.month,ml.month)
+        +'</div></div>';
+    }
+    const models=d.models&&d.models.length?d.models.map(m=>'<span class="chip">'+esc(m)+'</span>').join(''):'<span class="chip all">'+t('allModels')+'</span>';
+    html+='<div class="card"><h3>'+t('modelsTitle')+'</h3><div class="chips">'+models+'</div></div>';
+    res.innerHTML=html;
+  }catch(e){
+    res.className='result show';
+    res.innerHTML='<div class="card" style="color:var(--text2)">'+t('netErr')+'</div>';
+  }finally{
+    btn.disabled=false;btn.textContent=t('query');
+  }
+}
+document.getElementById('qBtn').addEventListener('click',query);
+document.getElementById('keyInput').addEventListener('keydown',e=>{if(e.key==='Enter')query()});
+</script>
+</body>
+</html>
