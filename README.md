@@ -34,7 +34,10 @@ This chains nginx configuration, reloads it, and starts the backend in one step.
 
 ```
 showcode/
-├── index.html               # Main application — code editor & gallery UI
+├── index.html               # Homepage — Kuaitu Compute nav page
+├── ui.html            # Main application — code editor & gallery UI
+├── quota.html               # Compute quota (placeholder page)
+├── guide.html               # Compute access guide (placeholder page)
 ├── server.py                # Python backend (stdlib only, handles /api/save)
 ├── projects/                # Saved projects land here (auto-created)
 ├── nginx.showcode.conf      # nginx site config (drop-in for new servers)
