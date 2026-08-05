@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网站访问统计 - 快兔算力</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --accent:#e79aa8;
+  --bg:#faf6f1;--surface:#fff;--border:#f1e5de;
+  --text:#5c5650;--text2:#a79a90;--text3:#c6bab0;
+  --radius-sm:6px;--radius:8px;--radius-lg:10px;
+  --mono:'SF Mono',ui-monospace,'JetBrains Mono','Cascadia Code',monospace;
+}
+html{overflow-y:scroll}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+
+/* Nav */
+.nav{height:50px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;position:sticky;top:0;z-index:100}
+.nav-inner{max-width:1120px;width:100%;margin:0 auto;display:flex;align-items:center;gap:14px;overflow:hidden}
+.nav-logo{display:flex;align-items:center;gap:0;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.nav-logo .name{font-size:15px;font-weight:800;letter-spacing:-.3px;color:var(--accent)}
+.nav-logo .name-gray{font-size:15px;font-weight:800;letter-spacing:-.3px;color:var(--text)}
+.nav-quota{padding:5px 10px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:500;color:var(--text2);transition:all .15s;white-space:nowrap;flex-shrink:0}
+.nav-quota:hover{background:#f3f4f6;color:var(--text)}
+.nav-links{display:flex;gap:2px;flex-shrink:0}
+.nav-links a{padding:5px 12px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:500;color:var(--text2);transition:all .15s}
+.nav-links a:hover{background:#f3f4f6;color:var(--text)}
+.nav-links a.active{color:var(--text);background:#f3f4f6}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:6px;flex-shrink:1;min-width:0;justify-content:flex-end}
+.nav-btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:var(--radius);font-size:12.5px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.nav-btn.primary{background:var(--accent);color:#fff}
+.nav-btn.primary:hover{box-shadow:0 2px 10px rgba(231,154,168,.4)}
+.nav-btn.ghost{background:transparent;color:var(--text2);padding:0 8px}
+.nav-btn.ghost:hover{background:#f3f4f6;color:var(--text)}
+.nav-btn.btn-lang{color:var(--text3)}
+.nav-btn.btn-lang.active{color:var(--text)}
+.nav-btn.btn-lang.active svg{stroke:var(--text)}
+
+/* Page */
+.main{max-width:1120px;width:100%;margin:0 auto;padding:32px 20px 48px;flex:1}
+.kicker{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:2px;color:var(--text3);margin-bottom:10px;text-transform:uppercase}
+.kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
+.page-head h1{font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
+.page-head p{font-size:13px;line-height:1.7;color:var(--text2)}
+
+/* Stats */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;margin-top:18px}
+.section h2{font-size:13.5px;font-weight:700;margin-bottom:14px;letter-spacing:-.2px;display:flex;align-items:center;gap:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.card{background:#fdfbf8;border:1px solid var(--border);border-radius:var(--radius);padding:16px 14px;text-align:center}
+.card .num{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-1px;color:var(--accent)}
+.card .num.dark{color:var(--text)}
+.card .lab{font-size:11.5px;color:var(--text2);margin-top:6px}
+.card.hl{background:linear-gradient(135deg,#e79aa8,#d9a03d);border:none}
+.card.hl .num{color:#fff}
+.card.hl .lab{color:rgba(255,255,255,.85)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:9px 12px;text-align:center;border-bottom:1px solid #f6ede6}
+th{font-size:11px;color:var(--text2);font-weight:600}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.5)}
+td.n{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.bar-cell{text-align:left;padding-left:6px}
+.bar-track{display:inline-block;height:14px;background:#f5ede6;border-radius:99px;overflow:hidden;vertical-align:middle}
+.bar-fill{display:block;height:100%;background:linear-gradient(90deg,#e79aa8,#d9a03d);border-radius:99px}
+.note{font-size:11px;color:var(--text3);text-align:center;margin-top:16px;line-height:1.8}
+
+/* Footer */
+.foot{flex-shrink:0;border-top:1px solid var(--border);background:var(--surface);padding:14px 20px;text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;color:var(--text3);text-transform:uppercase}
+
+@media(max-width:768px){.nav-links{display:none}.grid{grid-template-columns:repeat(2,1fr)}.card .num{font-size:24px}}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="index.html"><span class="name-gray">Show</span><span class="name">Coding.cn</span></a>
+    <a class="nav-quota" href="quota.html" data-i18n="navQuota">我的算力额度</a>
+    <div class="nav-links">
+      <a href="guide.html" data-i18n="navGuide">算力接入指南</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-btn ghost btn-lang" id="btn-lang" onclick="toggleLang()" data-i18n-title="switchLang" title="切换语言">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+      </button>
+      <a class="nav-btn primary" href="ui.html" data-i18n="startCoding">开始编程 →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Page -->
+<main class="main">
+  <div class="kicker"><span class="dot"></span><span data-i18n="ready">SYSTEM READY</span></div>
+  <div class="page-head">
+    <h1 data-i18n="statsTitle">📊 网站访问统计</h1>
+    <p data-i18n="statsDesc">到访用户数 · 独立 IP 统计 · 点击量统计</p>
+  </div>
+
+  <div class="section">
+    <h2 data-i18n="secToday">📅 今日统计</h2>
+    <div class="grid">
+      <div class="card hl"><div class="num" id="st-ips-today">-</div><div class="lab" data-i18n="lblIpsToday">今日独立 IP</div></div>
+      <div class="card"><div class="num dark" id="st-today">-</div><div class="lab" data-i18n="lblToday">今日点击</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 data-i18n="secTotal">📈 累计统计</h2>
+    <div class="grid">
+      <div class="card"><div class="num dark" id="st-ips">-</div><div class="lab" data-i18n="lblIps">累计独立 IP</div></div>
+      <div class="card"><div class="num dark" id="st-total">-</div><div class="lab" data-i18n="lblTotal">累计访问量（点击）</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 data-i18n="secPeriod">🗓 周期统计</h2>
+    <div class="grid">
+      <div class="card"><div class="num dark" id="st-ips-week">-</div><div class="lab" data-i18n="lblIpsWeek">近 7 天独立 IP</div></div>
+      <div class="card"><div class="num dark" id="st-ips-month">-</div><div class="lab" data-i18n="lblIpsMonth">近 30 天独立 IP</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 data-i18n="secGeo">🌍 地域统计（独立 IP）</h2>
+    <div class="grid">
+      <div class="card"><div class="num dark" id="st-cn">-</div><div class="lab" data-i18n="lblCn">大陆独立 IP</div></div>
+      <div class="card"><div class="num dark" id="st-ov">-</div><div class="lab" data-i18n="lblOv">海外独立 IP</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 data-i18n="secTrend">📊 近 14 天每日独立 IP</h2>
+    <table>
+      <thead><tr><th style="text-align:left" data-i18n="thDate">日期</th><th data-i18n="thIps">独立 IP</th><th style="text-align:left;width:60%" data-i18n="thTrend">趋势</th></tr></thead>
+      <tbody id="trend-body"><tr><td colspan="3" style="color:var(--text3)" data-i18n="loading">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <p class="note" data-i18n="statsNote">核心指标：今日独立 IP（今日去重后的不同 IP 访问数）。统计范围：全站页面（首页 / 编辑器 / 指南 / 额度查询）；大陆/海外按 IP 归属地判断；统计页自身不计数。</p>
+</main>
+
+<!-- Footer -->
+<footer class="foot"><span data-i18n="brand">快兔算力</span> · 2026</footer>
+
+<script>
+const LK='kuaitu_lang';
+let lang='zh';
+const i18n={
+  zh:{
+    brand:'快兔算力',ready:'系统就绪',navQuota:'我的算力',navGuide:'算力接入指南',switchLang:'切换语言',startCoding:'开始编程 →',
+    statsTitle:'📊 网站访问统计',statsDesc:'到访用户数 · 独立 IP 统计 · 点击量统计',
+    secToday:'📅 今日统计',secTotal:'📈 累计统计',secPeriod:'🗓 周期统计',secGeo:'🌍 地域统计（独立 IP）',secTrend:'📊 近 14 天每日独立 IP',
+    lblIpsToday:'今日独立 IP',lblToday:'今日点击',lblIps:'累计独立 IP',lblTotal:'累计访问量（点击）',
+    lblIpsWeek:'近 7 天独立 IP',lblIpsMonth:'近 30 天独立 IP',lblCn:'大陆独立 IP',lblOv:'海外独立 IP',
+    thDate:'日期',thIps:'独立 IP',thTrend:'趋势',loading:'加载中…',
+    statsNote:'核心指标：今日独立 IP（今日去重后的不同 IP 访问数）。统计范围：全站页面（首页 / 编辑器 / 指南 / 额度查询）；大陆/海外按 IP 归属地判断；统计页自身不计数。'
+  },
+  en:{
+    brand:'Kuaitu',ready:'System Ready',navQuota:'My Compute',navGuide:'Access Guide',switchLang:'Switch language',startCoding:'Start Coding →',
+    statsTitle:'📊 Site Statistics',statsDesc:'Visitors · Unique IPs · Clicks',
+    secToday:'📅 Today',secTotal:'📈 All Time',secPeriod:'🗓 Period',secGeo:'🌍 Regions (Unique IPs)',secTrend:'📊 Daily Unique IPs (14d)',
+    lblIpsToday:'Unique IPs Today',lblToday:'Clicks Today',lblIps:'Unique IPs Total',lblTotal:'Total Clicks',
+    lblIpsWeek:'Unique IPs (7d)',lblIpsMonth:'Unique IPs (30d)',lblCn:'Mainland CN',lblOv:'Overseas',
+    thDate:'Date',thIps:'Unique IPs',thTrend:'Trend',loading:'Loading...',
+    statsNote:'Key metric: Unique IPs Today. Scope: all site pages (Home / Editor / Guide / Quota); CN/Overseas by IP geolocation; the stats page itself is not counted.'
+  }
+};
+function t(k){return i18n[lang][k]||k}
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=t(el.getAttribute('data-i18n'))});
+  document.querySelectorAll('[data-i18n-title]').forEach(el=>{el.title=t(el.getAttribute('data-i18n-title'))});
+  document.getElementById('btn-lang').classList.toggle('active',lang==='en');
+  document.documentElement.lang=lang;document.title=t('statsTitle');
+}
+function toggleLang(){lang=lang==='zh'?'en':'zh';localStorage.setItem(LK,lang);applyLang()}
+try{const s=localStorage.getItem(LK);if(s==='en'||s==='zh')lang=s}catch(e){}
+
+const API=location.pathname.replace(/\/stats\.html$/,'')||'';
+const $=function(s){return document.querySelector(s)};
+function fmt(n){return Number(n||0).toLocaleString(lang==='zh'?'zh-CN':'en-US')}
+async function load(){
+  try{
+    const r=await fetch(API+'/api/stats');
+    const d=await r.json();
+    if(!d.ok)return;
+    $('#st-ips-today').textContent=fmt(d.ipsToday);
+    $('#st-total').textContent=fmt(d.total);
+    $('#st-ips').textContent=fmt(d.ips);
+    $('#st-today').textContent=fmt(d.today);
+    $('#st-ips-week').textContent=fmt(d.ipsWeek);
+    $('#st-ips-month').textContent=fmt(d.ipsMonth);
+    $('#st-cn').textContent=fmt(d.cn);
+    $('#st-ov').textContent=fmt(d.overseas);
+    const trend=d.byDayIps||d.byDay||[];
+    const max=Math.max(1,...trend.map(function(x){return x.n}));
+    $('#trend-body').innerHTML=trend.map(function(x){
+      const w=Math.round(x.n/max*100);
+      return '<tr><td style="text-align:left">'+x.d+'</td><td class="n">'+fmt(x.n)+'</td><td class="bar-cell"><span class="bar-track" style="width:120px"><span class="bar-fill" style="width:'+w+'%"></span></span></td></tr>';
+    }).join('')||'<tr><td colspan="3" style="color:var(--text3)">-</td></tr>';
+  }catch(e){}
+}
+applyLang();
+load();
+setInterval(load,60000);
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@ PORT = int(os.environ.get('SHOWCODE_PORT', 3000))
 DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECTS_DIR = os.path.join(DIR, 'projects')
 PROJECTS_JSON = os.path.join(PROJECTS_DIR, 'projects.json')
-UPSTREAM_LLM = 'http://127.0.0.1:8106'
+UPSTREAM_LLM = 'http://127.0.0.1:8104'
 MODEL_ROUTES = {
     'Macaron-V1-Tall': 'http://127.0.0.1:8106',
 }
@@ -19,7 +19,7 @@ MODEL_ROUTES = {
 def _upstream_for(model):
     return MODEL_ROUTES.get(model, UPSTREAM_LLM)
 
-def _llm_call(prompt, temp=0.95, model='Macaron-V1-Tall', max_tokens=8192):
+def _llm_call(prompt, temp=0.95, model='DeepSeek-V4-Flash', max_tokens=8192):
     upstream = _upstream_for(model)
     body = json.dumps({'model': model, 'messages': [{'role': 'user', 'content': prompt}],
         'temperature': temp, 'max_tokens': max_tokens, 'stream': False}).encode('utf-8')
@@ -71,6 +71,98 @@ def save_projects(projects):
     os.makedirs(PROJECTS_DIR, exist_ok=True)
     with open(PROJECTS_JSON, 'w', encoding='utf-8') as f:
         json.dump(projects, f, ensure_ascii=False, indent=2)
+
+# ---------- 访问统计(独立 IP / 点击量 / 日周月 / 大陆海外) ----------
+STATS_FILE = os.path.join(DIR, 'stats.json')
+_stats_lock = threading.Lock()
+_geo_cache = {}
+
+def _load_stats():
+    try:
+        with open(STATS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {'visits': []}
+
+def _save_stats(data):
+    with _stats_lock:
+        tmp = STATS_FILE + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+        os.replace(tmp, STATS_FILE)
+
+def _client_ip(headers, addr):
+    ip = headers.get('X-Real-IP') or ''
+    if not ip:
+        ip = (headers.get('X-Forwarded-For') or '').split(',')[0].strip()
+    return ip or addr[0]
+
+def _geo(ip):
+    """IP 归属: cn / overseas / unknown(带缓存;ip-api.com 主用,ipwho.is 备用)"""
+    if ip in _geo_cache:
+        return _geo_cache[ip]
+    region = 'unknown'
+    for url in ('http://ip-api.com/json/{ip}?fields=countryCode',
+                'https://ipwho.is/{ip}'):
+        try:
+            req = urllib.request.Request(url.format(ip=ip),
+                                         headers={'User-Agent': 'Mozilla/5.0 (showcode-stats)'})
+            with urllib.request.urlopen(req, timeout=4) as r:
+                d = json.loads(r.read().decode('utf-8', 'replace'))
+            if 'countryCode' in d:
+                region = 'cn' if d.get('countryCode') == 'CN' else ('overseas' if d.get('status') == 'success' else 'unknown')
+            elif 'country_code' in d:
+                region = 'cn' if d.get('country_code') == 'CN' else ('overseas' if d.get('success') else 'unknown')
+            if region != 'unknown':
+                break
+        except Exception:
+            continue
+    if len(_geo_cache) < 20000:
+        _geo_cache[ip] = region
+    return region
+
+def _stats_get(headers, addr):
+    visits = _load_stats().get('visits', [])
+    now_ms = int(time.time() * 1000)
+    DAY = 86400000
+    st = datetime.now()
+    today0 = int(datetime(st.year, st.month, st.day).timestamp() * 1000)
+    today = sum(1 for v in visits if v['ts'] >= today0)
+    week = sum(1 for v in visits if v['ts'] >= now_ms - 7 * DAY)
+    month = sum(1 for v in visits if v['ts'] >= now_ms - 30 * DAY)
+    ips = len(set(v['ip'] for v in visits))
+    # 核心指标:单日/近7天/近30天 去重后的独立 IP 数
+    ips_today = len(set(v['ip'] for v in visits if v['ts'] >= today0))
+    ips_week = len(set(v['ip'] for v in visits if v['ts'] >= now_ms - 7 * DAY))
+    ips_month = len(set(v['ip'] for v in visits if v['ts'] >= now_ms - 30 * DAY))
+    geo = {}
+    for ip in set(v['ip'] for v in visits):
+        g = _geo(ip)
+        geo[g] = geo.get(g, 0) + 1
+    by_day = []
+    by_day_ips = []
+    for i in range(13, -1, -1):
+        s = today0 - i * DAY
+        e = s + DAY
+        day_visits = [v for v in visits if s <= v['ts'] < e]
+        by_day.append({'d': datetime.fromtimestamp(s / 1000).strftime('%m-%d'),
+                       'n': len(day_visits)})
+        by_day_ips.append({'d': datetime.fromtimestamp(s / 1000).strftime('%m-%d'),
+                           'n': len(set(v['ip'] for v in day_visits))})
+    return {'ok': True, 'total': len(visits), 'today': today, 'week': week, 'month': month,
+            'ips': ips, 'ipsToday': ips_today, 'ipsWeek': ips_week, 'ipsMonth': ips_month,
+            'cn': geo.get('cn', 0), 'overseas': geo.get('overseas', 0),
+            'unknown': geo.get('unknown', 0), 'byDay': by_day, 'byDayIps': by_day_ips}
+
+def _stats_visit(headers, addr):
+    ip = _client_ip(headers, addr)
+    data = _load_stats()
+    visits = data.setdefault('visits', [])
+    visits.append({'ip': ip, 'ts': int(time.time() * 1000)})
+    if len(visits) > 100000:
+        data['visits'] = visits[-100000:]
+    _save_stats(data)
+    return {'ok': True}
 
 def _qs(query):
     return {k: v for k, v in (p.split('=', 1) for p in query.split('&') if '=' in p)}
@@ -154,6 +246,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         elif p == '/api/projects': self._send_json(200, load_projects(), {'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache'})
         elif p == '/api/suggestions': self._send_suggestions()
         elif p == '/api/fetch-url': self._fetch_url()
+        elif p == '/api/stats/visit': self._send_json(200, _stats_visit(self.headers, self.client_address))
+        elif p == '/api/stats': self._send_json(200, _stats_get(self.headers, self.client_address))
         else: super().do_GET()
 
     def do_DELETE(self):
@@ -197,9 +291,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 s = SUGGESTION_FB[lang]
         self._send_json(200, s, {'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma': 'no-cache'})
 
+    def _read_body(self):
+        """读取请求体;若客户端以 gzip 压缩(Content-Encoding: gzip)则解压。"""
+        length = int(self.headers.get('Content-Length', 0) or 0)
+        raw = self.rfile.read(length) if length > 0 else b''
+        if 'gzip' in self.headers.get('Content-Encoding', '').lower() and raw:
+            try:
+                raw = gzip.decompress(raw)
+            except Exception:
+                pass
+        return raw
+
     def _save_project(self):
         try:
-            data = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))).decode('utf-8'))
+            data = json.loads(self._read_body().decode('utf-8'))
             html, css, js = (data.get('html') or '').strip(), (data.get('css') or '').strip(), (data.get('js') or '').strip()
             code, title = data.get('code') or '', safe_name(data.get('title') or 'untitled')
 

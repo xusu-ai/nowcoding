@@ -4,6 +4,9 @@ projects.json
 __pycache__/
 *.pyc
 
+# Visitor stats data (contains raw IPs, NOT for public repos)
+stats.json
+
 # Reasonix editor backups
 *.bak.*
 *.bak

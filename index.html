@@ -164,9 +164,11 @@ button{font-family:inherit;cursor:pointer}
 </main>
 
 <!-- Footer -->
-<footer class="foot"><span data-i18n="brand">快兔算力</span> · 2026</footer>
+<footer class="foot"><a href="stats.html" style="color:inherit" data-i18n="brand">快兔算力</a> · 2026</footer>
 
 <script>
+/* 访问统计埋点:记录独立 IP 与点击数(失败静默,不影响页面) */
+try{fetch('/api/stats/visit')}catch(e){}
 const LK='kuaitu_lang';
 let lang='zh';
 const i18n={
