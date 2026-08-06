@@ -93,8 +93,15 @@ def _norm_host(h):
     return h
 
 STATS_FILE = os.path.join(DIR, 'stats.json')
-_stats_lock = threading.Lock()
-_geo_cache = {}
+_stats_lock = threading.RLock()  # RLock:允许持锁期间调用 _save_stats(内部再次加锁)而不死锁
+# IP 归属地缓存写入 stats.json 的 'geo' 字段(ip -> {region, ts}),持久化避免每次轮询重复查询
+GEO_TTL_MS = 24 * 3600 * 1000   # unknown 结果 24h 后重查,限流恢复后可自愈
+_IPAPI_INTERVAL = 1.4           # ip-api.com 免费版限额 45 req/min,请求间隔 >= 1.34s
+_geo_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='geo')
+_geo_pending = set()            # 去重:同一 IP 只入队一次
+_geo_pending_lock = threading.Lock()
+_ipapi_lock = threading.Lock()
+_ipapi_last = 0.0
 
 def _load_stats():
     try:
@@ -116,29 +123,70 @@ def _client_ip(headers, addr):
         ip = (headers.get('X-Forwarded-For') or '').split(',')[0].strip()
     return ip or addr[0]
 
-def _geo(ip):
-    """IP 归属: cn / overseas / unknown(带缓存;ip-api.com 主用,ipwho.is 备用)"""
-    if ip in _geo_cache:
-        return _geo_cache[ip]
+def _geo_lookup(ip):
+    """网络查询 IP 归属地(无缓存):cn / overseas / unknown。
+    ip-api.com 主用(请求间按免费版限额节流),ipwho.is 兜底。"""
+    global _ipapi_last
     region = 'unknown'
-    for url in ('http://ip-api.com/json/{ip}?fields=countryCode',
-                'https://ipwho.is/{ip}'):
+    for idx, url in enumerate(('http://ip-api.com/json/{ip}?fields=status,countryCode',
+                               'https://ipwho.is/{ip}')):
+        if idx == 0:  # 节流 ip-api.com,避免 45 req/min 限额被并发打爆
+            with _ipapi_lock:
+                wait = _IPAPI_INTERVAL - (time.time() - _ipapi_last)
+                if wait > 0:
+                    time.sleep(wait)
+                _ipapi_last = time.time()
         try:
             req = urllib.request.Request(url.format(ip=ip),
                                          headers={'User-Agent': 'Mozilla/5.0 (showcode-stats)'})
-            with urllib.request.urlopen(req, timeout=2) as r:
+            with urllib.request.urlopen(req, timeout=3) as r:
                 d = json.loads(r.read().decode('utf-8', 'replace'))
             if 'countryCode' in d:
-                region = 'cn' if d.get('countryCode') == 'CN' else ('overseas' if d.get('status') == 'success' else 'unknown')
+                cc = d.get('countryCode')
+                # 兼容 fields 缺 status 的响应:有 countryCode 且非 CN 即视为海外
+                region = 'cn' if cc == 'CN' else ('overseas' if d.get('status') in (None, 'success') else 'unknown')
             elif 'country_code' in d:
                 region = 'cn' if d.get('country_code') == 'CN' else ('overseas' if d.get('success') else 'unknown')
             if region != 'unknown':
                 break
         except Exception:
             continue
-    if len(_geo_cache) < 20000:
-        _geo_cache[ip] = region
     return region
+
+def _cached_region(ip):
+    """只读 geo 缓存(无网络)。返回 (region, needs_query)"""
+    data = _load_stats()
+    ent = (data.get('geo') or {}).get(ip)
+    if not ent:
+        return 'unknown', True
+    if ent.get('region') == 'unknown' and int(time.time() * 1000) - ent.get('ts', 0) >= GEO_TTL_MS:
+        return 'unknown', True
+    return ent.get('region', 'unknown'), False
+
+def _geo_region(ip):
+    """后台执行:网络查询 + 写回持久化缓存(原子写)"""
+    region = _geo_lookup(ip)
+    with _stats_lock:
+        data = _load_stats()
+        data.setdefault('geo', {})[ip] = {'region': region, 'ts': int(time.time() * 1000)}
+        _save_stats(data)
+    return region
+
+def _geo_async(ip):
+    """异步补查 IP 归属地(去重;查询分散在后台,避免打爆第三方限流)"""
+    with _geo_pending_lock:
+        if ip in _geo_pending:
+            return
+        _geo_pending.add(ip)
+    def _run():
+        try:
+            _geo_region(ip)
+        except Exception:
+            pass
+        finally:
+            with _geo_pending_lock:
+                _geo_pending.discard(ip)
+    _geo_executor.submit(_run)
 
 def _stats_get(headers, addr):
     visits = _load_stats().get('visits', [])
@@ -156,12 +204,14 @@ def _stats_get(headers, addr):
     ips_month = len(set(v['ip'] for v in visits if v['ts'] >= now_ms - 30 * DAY))
     today_visits = [v for v in visits if v['ts'] >= today0]
     geo = {}
-    # 地域统计:仅对当日独立 IP 查询(量小);并发查询 + 缓存,避免聚合超时
+    # 地域统计:读持久化缓存(秒回);缓存缺失/过期的 IP 丢后台异步补查,
+    # 本次显示 unknown,下轮轮询即有归属地,且不会阻塞页面聚合
     today_ips = set(v['ip'] for v in today_visits)
-    with ThreadPoolExecutor(max_workers=10) as ex:
-        geo_res = dict(zip(today_ips, ex.map(_geo, today_ips)))
-    for g in geo_res.values():
-        geo[g] = geo.get(g, 0) + 1
+    for ip in today_ips:
+        region, need = _cached_region(ip)
+        geo[region] = geo.get(region, 0) + 1
+        if need:
+            _geo_async(ip)
     by_day = []
     by_day_ips = []
     for i in range(13, -1, -1):
@@ -209,6 +259,7 @@ def _stats_visit(headers, addr):
     if len(visits) > 100000:
         data['visits'] = visits[-100000:]
     _save_stats(data)
+    _geo_async(ip)  # 新访客后台查一次归属地(分散在全天,不触发限流)
     return {'ok': True}
 
 def _qs(query):
