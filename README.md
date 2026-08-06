@@ -1,4 +1,4 @@
-# ShowCode - 快兔算力代码创作与展示平台
+# NowCoding - 快兔算力代码创作与展示平台
 
 一个轻量级的在线代码创作与展示平台：内置 AI 对话助手，支持代码编辑、语法高亮、实时预览、多设备模拟和一键分享。
 
@@ -21,7 +21,7 @@
 python3 server.py
 ```
 
-服务器默认监听 `0.0.0.0:3000`，浏览器访问 `http://你的IP:3000` 即可。
+服务默认监听 `127.0.0.1:13000`（systemd 配置），由 nginx 反代对外提供服务。
 
 ### 方式二：一键部署脚本（推荐）
 
@@ -76,10 +76,10 @@ cd /opt/showcode && sudo ./deploy.sh
 
 只需改 `nginx.showcode.conf` 两处：
 
-- `root /showcode;` → 改成实际目录
+- `root /nowcoding;` → 改成实际目录
 - `proxy_pass http://127.0.0.1:8104/v1/;` → 你的 LLM 上游（不用 AI 就整段删掉）
 
-后端端口默认 3000，要改就改 `server.py` 里的 `PORT =`，同步改 `nginx.showcode.conf` 里 `proxy_pass` 的端口。
+后端端口默认 13000（环境变量 `SHOWCODE_PORT`/`SHOWCODE_BIND` 可调），同步改 `nginx.nowcoding.conf` 里 `proxy_pass` 的端口。
 
 ## 🔧 技术栈
 
@@ -91,10 +91,10 @@ cd /opt/showcode && sudo ./deploy.sh
 
 ### 修改端口
 
-编辑 `server.py`，修改 `PORT = 3000` 为你想要的端口号：
+通过环境变量修改端口与监听地址（systemd 已配置 `SHOWCODE_PORT=13000` / `SHOWCODE_BIND=127.0.0.1`）：
 
-```python
-PORT = 3000   # 改为你需要的端口
+```bash
+SHOWCODE_PORT=13000 SHOWCODE_BIND=127.0.0.1 python3 server.py
 ```
 
 ### Nginx 反向代理（可选）
@@ -105,7 +105,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:13000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }

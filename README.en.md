@@ -1,4 +1,4 @@
-# ShowCode — Online Code Showcase & Playground
+# NowCoding — Online Code Showcase & Playground
 
 A lightweight online code editor, preview, and sharing platform with AI-powered coding assistance.
 
