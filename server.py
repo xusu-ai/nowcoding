@@ -237,6 +237,26 @@ def _geo_async(ip):
                 _geo_pending.discard(ip)
     _geo_executor.submit(_run)
 
+def _geo_backfill_loop():
+    """后台守护线程:每 2 分钟扫描今日访问 IP,补齐缺失的 geo/cat 缓存。
+    独立于页面请求,保证统计页随时打开,成分数据都是最新的。"""
+    while True:
+        time.sleep(120)
+        try:
+            data = _load_stats()
+            visits = data.get('visits', [])
+            st = datetime.now()
+            today0 = int(datetime(st.year, st.month, st.day).timestamp() * 1000)
+            geo = data.get('geo') or {}
+            for v in visits:
+                if v['ts'] < today0:
+                    continue
+                ent = geo.get(v['ip'])
+                if not ent or 'cat' not in ent:
+                    _geo_async(v['ip'])
+        except Exception:
+            continue
+
 def _stats_get(headers, addr):
     visits = _load_stats().get('visits', [])
     now_ms = int(time.time() * 1000)
@@ -305,12 +325,13 @@ def _stats_get(headers, addr):
 def _stats_visit(headers, addr):
     ip = _client_ip(headers, addr)
     host = (headers.get('Host') or 'unknown').split(':')[0].lower()
-    data = _load_stats()
-    visits = data.setdefault('visits', [])
-    visits.append({'ip': ip, 'ts': int(time.time() * 1000), 'host': host})
-    if len(visits) > 100000:
-        data['visits'] = visits[-100000:]
-    _save_stats(data)
+    with _stats_lock:  # 读-改-写整体加锁,避免覆盖并发 geo 缓存的写入
+        data = _load_stats()
+        visits = data.setdefault('visits', [])
+        visits.append({'ip': ip, 'ts': int(time.time() * 1000), 'host': host})
+        if len(visits) > 100000:
+            data['visits'] = visits[-100000:]
+        _save_stats(data)
     _geo_async(ip)  # 新访客后台查一次归属地(分散在全天,不触发限流)
     return {'ok': True}
 
@@ -627,6 +648,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    threading.Thread(target=_geo_backfill_loop, daemon=True).start()  # 后台定期补查 geo/cat 缓存
     httpd = http.server.ThreadingHTTPServer((os.environ.get('SHOWCODE_BIND', '127.0.0.1'), PORT), Handler)
     print("ShowCode server running on http://0.0.0.0:{}".format(PORT), flush=True)
     httpd.serve_forever()
