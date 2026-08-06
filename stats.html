@@ -74,6 +74,10 @@ td.n{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
 .bar-track{display:inline-block;height:14px;background:#f5ede6;border-radius:99px;overflow:hidden;vertical-align:middle}
 .bar-fill{display:block;height:100%;background:linear-gradient(90deg,#e79aa8,#d9a03d);border-radius:99px}
 .note{font-size:11px;color:var(--text3);text-align:center;margin-top:16px;line-height:1.8}
+.ip-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ip-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;background:#fdfbf8;border:1px solid var(--border);font-family:var(--mono);font-size:11.5px;color:var(--text2)}
+.ip-chip b{color:var(--text);font-weight:700}
+.ip-note{font-size:11px;color:var(--text3);margin-top:10px}
 
 /* Footer */
 .foot{flex-shrink:0;border-top:1px solid var(--border);background:var(--surface);padding:14px 20px;text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;color:var(--text3);text-transform:uppercase}
@@ -86,7 +90,7 @@ td.n{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
 <!-- Nav -->
 <nav class="nav">
   <div class="nav-inner">
-    <a class="nav-logo" href="index.html"><span class="name-gray">Show</span><span class="name">Coding.cn</span></a>
+    <a class="nav-logo" href="index.html"><span class="name-gray">Now</span><span class="name">Coding.cn</span></a>
     <a class="nav-quota" href="quota.html" data-i18n="navQuota">我的算力额度</a>
     <div class="nav-links">
       <a href="guide.html" data-i18n="navGuide">算力接入指南</a>
@@ -133,11 +137,25 @@ td.n{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
   </div>
 
   <div class="section">
-    <h2 data-i18n="secGeo">🌍 地域统计（独立 IP）</h2>
+    <h2 data-i18n="secGeo">🌍 地域统计（今日独立 IP）</h2>
     <div class="grid">
       <div class="card"><div class="num dark" id="st-cn">-</div><div class="lab" data-i18n="lblCn">大陆独立 IP</div></div>
       <div class="card"><div class="num dark" id="st-ov">-</div><div class="lab" data-i18n="lblOv">海外独立 IP</div></div>
     </div>
+  </div>
+
+  <div class="section">
+    <h2 data-i18n="secDomains">🌐 域名统计（今日）</h2>
+    <table>
+      <thead><tr><th style="text-align:left" data-i18n="thHost">域名</th><th data-i18n="thIps">独立 IP</th><th style="text-align:left;width:60%" data-i18n="thShare">占比</th></tr></thead>
+      <tbody id="domain-body"><tr><td colspan="3" style="color:var(--text3)" data-i18n="loading">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 data-i18n="secIps">🕵️ 今日访问 IP（隐私脱敏）</h2>
+    <div class="ip-chips" id="ip-chips"><span style="color:var(--text3)">-</span></div>
+    <p class="ip-note" data-i18n="ipNote">隐私保护：IP 仅显示前两段，如 1.2.*.*</p>
   </div>
 
   <div class="section">
@@ -161,7 +179,8 @@ const i18n={
   zh:{
     brand:'快兔算力',ready:'系统就绪',navQuota:'我的算力',navGuide:'算力接入指南',switchLang:'切换语言',startCoding:'开始编程 →',
     statsTitle:'📊 网站访问统计',statsDesc:'到访用户数 · 独立 IP 统计 · 点击量统计',
-    secToday:'📅 今日统计',secTotal:'📈 累计统计',secPeriod:'🗓 周期统计',secGeo:'🌍 地域统计（独立 IP）',secTrend:'📊 近 14 天每日独立 IP',
+    secToday:'📅 今日统计',secTotal:'📈 累计统计',secPeriod:'🗓 周期统计',secGeo:'🌍 地域统计（今日独立 IP）',secDomains:'🌐 域名统计（今日）',secIps:'🕵️ 今日访问 IP（隐私脱敏）',secTrend:'📊 近 14 天每日独立 IP',
+    thHost:'域名',thShare:'占比',ipNote:'隐私保护：IP 仅显示前两段，如 1.2.*.*',
     lblIpsToday:'今日独立 IP',lblToday:'今日点击',lblIps:'累计独立 IP',lblTotal:'累计访问量（点击）',
     lblIpsWeek:'近 7 天独立 IP',lblIpsMonth:'近 30 天独立 IP',lblCn:'大陆独立 IP',lblOv:'海外独立 IP',
     thDate:'日期',thIps:'独立 IP',thTrend:'趋势',loading:'加载中…',
@@ -170,7 +189,8 @@ const i18n={
   en:{
     brand:'Kuaitu',ready:'System Ready',navQuota:'My Compute',navGuide:'Access Guide',switchLang:'Switch language',startCoding:'Start Coding →',
     statsTitle:'📊 Site Statistics',statsDesc:'Visitors · Unique IPs · Clicks',
-    secToday:'📅 Today',secTotal:'📈 All Time',secPeriod:'🗓 Period',secGeo:'🌍 Regions (Unique IPs)',secTrend:'📊 Daily Unique IPs (14d)',
+    secToday:'📅 Today',secTotal:'📈 All Time',secPeriod:'🗓 Period',secGeo:'🌍 Regions (Unique IPs)',secDomains:'🌐 Domains (Today)',secIps:'🕵️ Today\'s IPs (Masked)',secTrend:'📊 Daily Unique IPs (14d)',
+    thHost:'Domain',thShare:'Share',ipNote:'Privacy: IPs shown as first two octets only, e.g. 1.2.*.*',
     lblIpsToday:'Unique IPs Today',lblToday:'Clicks Today',lblIps:'Unique IPs Total',lblTotal:'Total Clicks',
     lblIpsWeek:'Unique IPs (7d)',lblIpsMonth:'Unique IPs (30d)',lblCn:'Mainland CN',lblOv:'Overseas',
     thDate:'Date',thIps:'Unique IPs',thTrend:'Trend',loading:'Loading...',
@@ -209,6 +229,19 @@ async function load(){
       const w=Math.round(x.n/max*100);
       return '<tr><td style="text-align:left">'+x.d+'</td><td class="n">'+fmt(x.n)+'</td><td class="bar-cell"><span class="bar-track" style="width:120px"><span class="bar-fill" style="width:'+w+'%"></span></span></td></tr>';
     }).join('')||'<tr><td colspan="3" style="color:var(--text3)">-</td></tr>';
+    // 域名统计(今日,覆盖全部关联域名)
+    const doms=d.domainsToday||[];
+    const dmax=Math.max(1,...doms.map(function(x){return x.ips}));
+    $('#domain-body').innerHTML=doms.map(function(x){
+      const zero=x.ips===0;
+      const w=zero?0:Math.round(x.ips/dmax*100);
+      return '<tr'+(zero?' style="opacity:.45"':'')+'><td style="text-align:left;font-family:var(--mono)">'+x.host+'</td><td class="n">'+(zero?'-':fmt(x.ips))+'</td><td class="bar-cell"><span class="bar-track" style="width:120px"><span class="bar-fill" style="width:'+w+'%"></span></span></td></tr>';
+    }).join('');
+    // 今日访问 IP(脱敏)
+    const ipl=d.ipsTodayList||[];
+    $('#ip-chips').innerHTML=ipl.map(function(x){
+      return '<span class="ip-chip">'+x.masked+'<b>×'+fmt(x.clicks)+'</b></span>';
+    }).join('')||'<span style="color:var(--text3)">-</span>';
   }catch(e){}
 }
 applyLang();

@@ -81,7 +81,7 @@ button{font-family:inherit;cursor:pointer}
 <!-- Nav -->
 <nav class="nav">
   <div class="nav-inner">
-    <a class="nav-logo" href="index.html"><span class="name-gray">Show</span><span class="name">Coding.cn</span></a>
+    <a class="nav-logo" href="index.html"><span class="name-gray">Now</span><span class="name">Coding.cn</span></a>
     <a class="nav-quota" href="quota.html" data-i18n="navQuota">我的算力额度</a>
     <div class="nav-links">
       <a class="active" href="guide.html" data-i18n="navGuide">算力接入指南</a>
@@ -104,7 +104,7 @@ button{font-family:inherit;cursor:pointer}
   </div>
   <section class="access-card">
     <h2 data-i18n="accessTitle">大模型接入方式（最简介绍）</h2>
-    <div class="access-row"><b data-i18n="accessEndpoint">模型接入地址：</b><code>https://api.showcoding.cn/v1</code></div>
+    <div class="access-row"><b data-i18n="accessEndpoint">模型接入地址：</b><code>https://api.nowcoding.cn/v1</code></div>
     <div class="access-row"><b data-i18n="accessKey">接入密钥：</b><span data-i18n="accessKeyVal">淘宝工作人员私信发你的 API Key</span></div>
     <div class="access-row"><b data-i18n="accessShop">淘宝店：</b><a href="https://shop391133326.taobao.com/" target="_blank" rel="noopener">快兔算力</a></div>
     <div class="access-row"><b data-i18n="accessQuery">查询额度使用情况：</b><a href="quota.html" data-i18n="accessQueryVal">点击「我的算力」，输入自己的 API Key，即可查询</a></div>
@@ -120,10 +120,10 @@ button{font-family:inherit;cursor:pointer}
   </section>
   <section class="access-card">
     <h2 data-i18n="exTitle">模型使用示例（curl · OpenAI 兼容接入）</h2>
-    <div class="access-row"><b data-i18n="exBase">接入地址：</b><code>https://api.showcoding.cn/v1</code></div>
+    <div class="access-row"><b data-i18n="exBase">接入地址：</b><code>https://api.nowcoding.cn/v1</code></div>
     <div class="access-row"><b data-i18n="exAuth">认证方式：</b><span data-i18n="exAuthVal">你的 API Key</span></div>
     <div class="access-row"><b data-i18n="exModelsList">模型列表：</b><code>GET /v1/models</code></div>
-    <div class="code-block"><code>curl https://api.showcoding.cn/v1/chat/completions \
+    <div class="code-block"><code>curl https://api.nowcoding.cn/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer  你的 API Key" \
   -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"你好"}]}'</code></div>

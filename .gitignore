@@ -10,3 +10,4 @@ stats.json
 # Reasonix editor backups
 *.bak.*
 *.bak
+*.rename.*

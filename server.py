@@ -2,6 +2,7 @@
 """ShowCode HTTP server - port 3000"""
 import http.server, os, sys, json, re, random, threading, time, socket
 import gzip, io
+from concurrent.futures import ThreadPoolExecutor
 import urllib.request, urllib.error
 socket.setdefaulttimeout(None)  # 永不超时，AI 生成可不间断进行
 from urllib.parse import urlparse
@@ -73,6 +74,24 @@ def save_projects(projects):
         json.dump(projects, f, ensure_ascii=False, indent=2)
 
 # ---------- 访问统计(独立 IP / 点击量 / 日周月 / 大陆海外) ----------
+# 本站 nginx 关联域名清单(server_name,去 www 归一化)
+KNOWN_DOMAINS = {
+    'htmlshow.com', 'htmlshow.cn', 'htmlshow.cc', 'htmlshow.net', 'htmlshow.space',
+    'htmlcode.cn', 'htmllab.cn', 'htmllab.net',
+    'showcode.chat', 'showcode.ink', 'showcode.link', 'showcode.live', 'showcode.show',
+    'showcode.site', 'showcode.space', 'showcode.tv', 'showcode.work', 'showcode.world',
+    'showcode.zone', 'showcoding.cn', 'nowcoding.cn', 'showhtml.cn', 'showmycode.cn', 'showyourcode.cn',
+    'upcoding.cn', 'kkcoding.cn', 'gpucode.cn', 'ttcoding.cn', 'sscoding.cn',
+    'qqcoding.top', 'qqcoding.cn', 'qqcoding.com', 'codegpu.shop', 'codegpu.online',
+    'codegpu.fun', 'codegpu.cn', 'qqcmd.fun', 'api.nowcoding.cn',
+}
+
+def _norm_host(h):
+    h = (h or '').lower().strip()
+    if h.startswith('www.'):
+        h = h[4:]
+    return h
+
 STATS_FILE = os.path.join(DIR, 'stats.json')
 _stats_lock = threading.Lock()
 _geo_cache = {}
@@ -107,7 +126,7 @@ def _geo(ip):
         try:
             req = urllib.request.Request(url.format(ip=ip),
                                          headers={'User-Agent': 'Mozilla/5.0 (showcode-stats)'})
-            with urllib.request.urlopen(req, timeout=4) as r:
+            with urllib.request.urlopen(req, timeout=2) as r:
                 d = json.loads(r.read().decode('utf-8', 'replace'))
             if 'countryCode' in d:
                 region = 'cn' if d.get('countryCode') == 'CN' else ('overseas' if d.get('status') == 'success' else 'unknown')
@@ -135,9 +154,13 @@ def _stats_get(headers, addr):
     ips_today = len(set(v['ip'] for v in visits if v['ts'] >= today0))
     ips_week = len(set(v['ip'] for v in visits if v['ts'] >= now_ms - 7 * DAY))
     ips_month = len(set(v['ip'] for v in visits if v['ts'] >= now_ms - 30 * DAY))
+    today_visits = [v for v in visits if v['ts'] >= today0]
     geo = {}
-    for ip in set(v['ip'] for v in visits):
-        g = _geo(ip)
+    # 地域统计:仅对当日独立 IP 查询(量小);并发查询 + 缓存,避免聚合超时
+    today_ips = set(v['ip'] for v in today_visits)
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        geo_res = dict(zip(today_ips, ex.map(_geo, today_ips)))
+    for g in geo_res.values():
         geo[g] = geo.get(g, 0) + 1
     by_day = []
     by_day_ips = []
@@ -149,16 +172,40 @@ def _stats_get(headers, addr):
                        'n': len(day_visits)})
         by_day_ips.append({'d': datetime.fromtimestamp(s / 1000).strftime('%m-%d'),
                            'n': len(set(v['ip'] for v in day_visits))})
+    # 域名统计:每个域名当日独立 IP 数(覆盖全部关联域名,0 访问也列出)
+    today_visits = [v for v in visits if v['ts'] >= today0]
+    host_ips = {d: set() for d in KNOWN_DOMAINS}
+    other_ips = {}
+    for v in today_visits:
+        h = _norm_host(v.get('host') or '')
+        if h in KNOWN_DOMAINS:
+            host_ips[h].add(v['ip'])
+        else:
+            other_ips.setdefault(h or 'unknown', set()).add(v['ip'])
+    domains_today = ([{'host': d, 'ips': len(s), 'known': True} for d, s in host_ips.items()] +
+                     [{'host': h, 'ips': len(s), 'known': False} for h, s in other_ips.items()])
+    domains_today.sort(key=lambda x: -x['ips'])
+    # 当日独立 IP 列表(隐私脱敏:只显示前两段)
+    def _mask(ip):
+        parts = ip.split('.')
+        return '.'.join(parts[:2]) + '.*.*' if len(parts) >= 2 else ip
+    ip_count = {}
+    for v in today_visits:
+        ip_count[v['ip']] = ip_count.get(v['ip'], 0) + 1
+    ips_today_list = [{'masked': _mask(ip), 'clicks': n}
+                      for ip, n in sorted(ip_count.items(), key=lambda x: -x[1])]
     return {'ok': True, 'total': len(visits), 'today': today, 'week': week, 'month': month,
             'ips': ips, 'ipsToday': ips_today, 'ipsWeek': ips_week, 'ipsMonth': ips_month,
             'cn': geo.get('cn', 0), 'overseas': geo.get('overseas', 0),
-            'unknown': geo.get('unknown', 0), 'byDay': by_day, 'byDayIps': by_day_ips}
+            'unknown': geo.get('unknown', 0), 'byDay': by_day, 'byDayIps': by_day_ips,
+            'domainsToday': domains_today, 'ipsTodayList': ips_today_list}
 
 def _stats_visit(headers, addr):
     ip = _client_ip(headers, addr)
+    host = (headers.get('Host') or 'unknown').split(':')[0].lower()
     data = _load_stats()
     visits = data.setdefault('visits', [])
-    visits.append({'ip': ip, 'ts': int(time.time() * 1000)})
+    visits.append({'ip': ip, 'ts': int(time.time() * 1000), 'host': host})
     if len(visits) > 100000:
         data['visits'] = visits[-100000:]
     _save_stats(data)

@@ -10,9 +10,9 @@ set -e
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PY="python3 $DIR/server.py"
-PID_FILE="/var/run/showcode.pid"
-LOG_FILE="/var/log/showcode.log"
-NGINX_EN="/etc/nginx/sites-enabled/showcode"
+PID_FILE="/var/run/nowcoding.pid"
+LOG_FILE="/var/log/nowcoding.log"
+NGINX_EN="/etc/nginx/sites-enabled/nowcoding"
 
 start_backend() {
   if pgrep -f "$PY" >/dev/null; then echo "后端已在运行"; return; fi
@@ -35,7 +35,7 @@ case "${1:-deploy}" in
   restart) stop_backend; sleep 1; start_backend ;;
   status)  pgrep -fa "$PY" | grep -v grep || echo "未运行" ;;
   service)
-    cat > /tmp/showcode.service << EOF
+    cat > /tmp/nowcoding.service << EOF
 [Unit]
 Description=ShowCode Backend (server.py:3000)
 After=network.target
@@ -47,16 +47,16 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-    cp /tmp/showcode.service /etc/systemd/system/showcode.service
+    cp /tmp/nowcoding.service /etc/systemd/system/nowcoding.service
     systemctl daemon-reload
-    systemctl enable --now showcode
+    systemctl enable --now nowcoding
     echo "已安装并启动 systemd 服务"
     ;;
   deploy)
     [ "$EUID" -ne 0 ] && { echo "请用 sudo 运行：sudo $0"; exit 1; }
     echo "[1/2] 配置 nginx..."
     [ -e "$NGINX_EN" ] && [ ! -L "$NGINX_EN" ] && cp "$NGINX_EN" "${NGINX_EN}.bak.$(date +%s)"
-    ln -sf "$DIR/nginx.showcode.conf" "$NGINX_EN"
+    ln -sf "$DIR/nginx.nowcoding.conf" "$NGINX_EN"
     nginx -t
     systemctl reload nginx || service nginx reload
     echo "[2/2] 启动后端..."
