@@ -145,6 +145,15 @@ td.n{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
   </div>
 
   <div class="section">
+    <h2 data-i18n="secComp">🧬 访客成分分析（今日独立 IP）</h2>
+    <table>
+      <thead><tr><th style="text-align:left" data-i18n="thCompType">成分类型</th><th data-i18n="thIps">独立 IP</th><th style="text-align:left;width:60%" data-i18n="thShare">占比</th></tr></thead>
+      <tbody id="comp-body"><tr><td colspan="3" style="color:var(--text3)" data-i18n="loading">加载中…</td></tr></tbody>
+    </table>
+    <p class="ip-note" data-i18n="compNote">判定依据：IP 归属机构（住宅宽带 / 移动网络 / 云主机 / 搜索爬虫段 / 监控服务），非浏览器行为分析。</p>
+  </div>
+
+  <div class="section">
     <h2 data-i18n="secDomains">🌐 域名统计（今日）</h2>
     <table>
       <thead><tr><th style="text-align:left" data-i18n="thHost">域名</th><th data-i18n="thIps">独立 IP</th><th style="text-align:left;width:60%" data-i18n="thShare">占比</th></tr></thead>
@@ -179,8 +188,10 @@ const i18n={
   zh:{
     brand:'快兔算力',ready:'系统就绪',navQuota:'我的算力',navGuide:'算力接入指南',switchLang:'切换语言',startCoding:'开始编程 →',
     statsTitle:'📊 网站访问统计',statsDesc:'到访用户数 · 独立 IP 统计 · 点击量统计',
-    secToday:'📅 今日统计',secTotal:'📈 累计统计',secPeriod:'🗓 周期统计',secGeo:'🌍 地域统计（今日独立 IP）',secDomains:'🌐 域名统计（今日）',secIps:'🕵️ 今日访问 IP（隐私脱敏）',secTrend:'📊 近 14 天每日独立 IP',
-    thHost:'域名',thShare:'占比',ipNote:'隐私保护：IP 仅显示前两段，如 1.2.*.*',
+    secToday:'📅 今日统计',secTotal:'📈 累计统计',secPeriod:'🗓 周期统计',secGeo:'🌍 地域统计（今日独立 IP）',secComp:'🧬 访客成分分析（今日独立 IP）',secDomains:'🌐 域名统计（今日）',secIps:'🕵️ 今日访问 IP（隐私脱敏）',secTrend:'📊 近 14 天每日独立 IP',
+    thHost:'域名',thShare:'占比',thCompType:'成分类型',ipNote:'隐私保护：IP 仅显示前两段，如 1.2.*.*',
+    lblCompUser:'🧑 真实用户（住宅/移动）',lblCompBot:'🤖 搜索引擎爬虫',lblCompCloud:'☁️ 云主机/自动化',lblCompMonitor:'📡 监控/探测',lblCompUnknown:'❓ 未知',
+    compNote:'判定依据：IP 归属机构（住宅宽带 / 移动网络 / 云主机 / 搜索爬虫段 / 监控服务），非浏览器行为分析。',
     lblIpsToday:'今日独立 IP',lblToday:'今日点击',lblIps:'累计独立 IP',lblTotal:'累计访问量（点击）',
     lblIpsWeek:'近 7 天独立 IP',lblIpsMonth:'近 30 天独立 IP',lblCn:'大陆独立 IP',lblOv:'海外独立 IP',
     thDate:'日期',thIps:'独立 IP',thTrend:'趋势',loading:'加载中…',
@@ -189,8 +200,10 @@ const i18n={
   en:{
     brand:'Kuaitu',ready:'System Ready',navQuota:'My Compute',navGuide:'Access Guide',switchLang:'Switch language',startCoding:'Start Coding →',
     statsTitle:'📊 Site Statistics',statsDesc:'Visitors · Unique IPs · Clicks',
-    secToday:'📅 Today',secTotal:'📈 All Time',secPeriod:'🗓 Period',secGeo:'🌍 Regions (Unique IPs)',secDomains:'🌐 Domains (Today)',secIps:'🕵️ Today\'s IPs (Masked)',secTrend:'📊 Daily Unique IPs (14d)',
-    thHost:'Domain',thShare:'Share',ipNote:'Privacy: IPs shown as first two octets only, e.g. 1.2.*.*',
+    secToday:'📅 Today',secTotal:'📈 All Time',secPeriod:'🗓 Period',secGeo:'🌍 Regions (Unique IPs)',secComp:'🧬 Visitor Composition (Unique IPs Today)',secDomains:'🌐 Domains (Today)',secIps:'🕵️ Today\'s IPs (Masked)',secTrend:'📊 Daily Unique IPs (14d)',
+    thHost:'Domain',thShare:'Share',thCompType:'Type',ipNote:'Privacy: IPs shown as first two octets only, e.g. 1.2.*.*',
+    lblCompUser:'🧑 Real users (residential/mobile)',lblCompBot:'🤖 Search engine bots',lblCompCloud:'☁️ Cloud / automation',lblCompMonitor:'📡 Monitoring / probes',lblCompUnknown:'❓ Unknown',
+    compNote:'Classified by IP ownership (residential/mobile ISP, cloud hosting, search-bot ranges, monitoring services), not browser behavior.',
     lblIpsToday:'Unique IPs Today',lblToday:'Clicks Today',lblIps:'Unique IPs Total',lblTotal:'Total Clicks',
     lblIpsWeek:'Unique IPs (7d)',lblIpsMonth:'Unique IPs (30d)',lblCn:'Mainland CN',lblOv:'Overseas',
     thDate:'Date',thIps:'Unique IPs',thTrend:'Trend',loading:'Loading...',
@@ -223,6 +236,17 @@ async function load(){
     $('#st-ips-month').textContent=fmt(d.ipsMonth);
     $('#st-cn').textContent=fmt(d.cn);
     $('#st-ov').textContent=fmt(d.overseas);
+    // 访客成分分析(今日独立 IP 按归属机构分类)
+    const comp=d.composition||{};
+    const compKeys=[['lblCompUser','user'],['lblCompBot','bot'],['lblCompCloud','cloud'],['lblCompMonitor','monitor'],['lblCompUnknown','unknown']];
+    const compTotal=compKeys.reduce(function(s,x){return s+(comp[x[1]]||0)},0)||1;
+    const compMax=Math.max(1,...compKeys.map(function(x){return comp[x[1]]||0}));
+    $('#comp-body').innerHTML=compKeys.map(function(x){
+      const n=comp[x[1]]||0;
+      const w=Math.round(n/compMax*100);
+      const pct=Math.round(n/compTotal*100);
+      return '<tr><td style="text-align:left">'+t(x[0])+'</td><td class="n">'+fmt(n)+'</td><td class="bar-cell"><span class="bar-track" style="width:120px"><span class="bar-fill" style="width:'+w+'%"></span></span><span style="color:var(--text3);font-size:11px;margin-left:8px">'+pct+'%</span></td></tr>';
+    }).join('')||'<tr><td colspan="3" style="color:var(--text3)">-</td></tr>';
     const trend=d.byDayIps||d.byDay||[];
     const max=Math.max(1,...trend.map(function(x){return x.n}));
     $('#trend-body').innerHTML=trend.map(function(x){

@@ -103,6 +103,28 @@ _geo_pending_lock = threading.Lock()
 _ipapi_lock = threading.Lock()
 _ipapi_last = 0.0
 
+# ---- 访客成分分类规则(按 IP 段 + 归属组织,用于统计页"访客成分分析") ----
+_BOT_IP_PREFIX = ('66.249.', '17.', '40.77.', '157.55.', '52.167.')  # Googlebot / Apple / Bing
+_BOT_ORG = ('palo alto', 'fortinet', 'facebook', 'meta')              # 安全扫描 / Meta
+_MONITOR_IPS = ('8.8.8.8',)                                           # Google 公共 DNS(探测)
+_MONITOR_IP_PREFIX = ('146.112.',)                                    # Cisco OpenDNS
+_MONITOR_ORG = ('opendns', 'umbrella', 'quad9')
+_CLOUD_ORG = ('alibaba', 'aliyun', 'amazon', 'aws', 'microsoft', 'azure', 'google', 'tencent',
+              'ovh', 'contabo', 'hetzner', 'm247', 'hostroyale', 'zenlayer', 'leaseweb', 'ip volume',
+              'gsl networks', 'ryamer', 'oculus', 'cccs', 'skyway', 'digitalocean', 'vultr',
+              'choopa', 'worldstream', 'datacamp', 'cogent', 'fdcservers', 'colocrossing',
+              'oneprovider', 'multacom', 'hivelocity', 'psychz', 'gcore', 'uab code200')
+_CLOUD_IP_PREFIX = ('47.77.', '47.88.', '47.251.', '47.254.', '34.72.', '34.122.', '34.123.', '104.197.',
+                    '52.43.', '44.227.', '3.80.', '3.95.', '98.90.', '107.150.', '23.88.', '146.70.',
+                    '45.61.', '103.196.', '45.157.', '45.159.', '45.142.', '92.43.', '31.40.',
+                    '213.255.', '119.12.', '185.255.', '194.124.', '198.55.', '206.204.', '216.251.',
+                    '192.197.', '152.39.', '209.50.', '23.82.', '51.158.', '79.127.', '89.248.',
+                    '94.102.', '138.199.', '193.19.', '82.139.')
+_USER_ORG = ('wave broadband', 'deutsche telekom', 'kddi', 'ml telecom', 'comcast', 'charter',
+             'spectrum', 'virgin', 'vodafone', 'orange', 't-mobile', 'verizon', 'at&t', 'softbank',
+             'ntt', 'docomo', 'private customer', 'china mobile', 'china telecom', 'china unicom',
+             'telefonica', 'reliance', 'jio')
+
 def _load_stats():
     try:
         with open(STATS_FILE, 'r', encoding='utf-8') as f:
@@ -124,11 +146,12 @@ def _client_ip(headers, addr):
     return ip or addr[0]
 
 def _geo_lookup(ip):
-    """网络查询 IP 归属地(无缓存):cn / overseas / unknown。
-    ip-api.com 主用(请求间按免费版限额节流),ipwho.is 兜底。"""
+    """网络查询 IP 归属地+访客成分(无缓存):返回 (region, category)。
+    region: cn / overseas / unknown;category: bot / cloud / monitor / user / unknown。
+    ip-api.com 主用(请求间按免费版限额节流,带 org/isp),ipwho.is 兜底。"""
     global _ipapi_last
-    region = 'unknown'
-    for idx, url in enumerate(('http://ip-api.com/json/{ip}?fields=status,countryCode',
+    region, cat = 'unknown', 'unknown'
+    for idx, url in enumerate(('http://ip-api.com/json/{ip}?fields=status,countryCode,org,isp',
                                'https://ipwho.is/{ip}')):
         if idx == 0:  # 节流 ip-api.com,避免 45 req/min 限额被并发打爆
             with _ipapi_lock:
@@ -141,36 +164,62 @@ def _geo_lookup(ip):
                                          headers={'User-Agent': 'Mozilla/5.0 (showcode-stats)'})
             with urllib.request.urlopen(req, timeout=3) as r:
                 d = json.loads(r.read().decode('utf-8', 'replace'))
+            org = ''
             if 'countryCode' in d:
                 cc = d.get('countryCode')
                 # 兼容 fields 缺 status 的响应:有 countryCode 且非 CN 即视为海外
                 region = 'cn' if cc == 'CN' else ('overseas' if d.get('status') in (None, 'success') else 'unknown')
+                org = d.get('org') or d.get('isp') or ''
             elif 'country_code' in d:
                 region = 'cn' if d.get('country_code') == 'CN' else ('overseas' if d.get('success') else 'unknown')
-            if region != 'unknown':
+                conn = d.get('connection') or {}
+                org = conn.get('org') or conn.get('isp') or ''
+            cat = _ip_category(ip, org)
+            if region != 'unknown' and cat != 'unknown':
                 break
         except Exception:
             continue
-    return region
+    return region, cat
+
+def _ip_category(ip, org):
+    """按 IP 段 + 归属组织判访客成分:bot / cloud / monitor / user / unknown"""
+    lo = (org or '').lower()
+    if ip.startswith(_BOT_IP_PREFIX):
+        return 'bot'
+    if ip in _MONITOR_IPS or ip.startswith(_MONITOR_IP_PREFIX) or any(k in lo for k in _MONITOR_ORG):
+        return 'monitor'
+    if any(k in lo for k in _BOT_ORG):
+        return 'bot'
+    if any(k in lo for k in _CLOUD_ORG) or ip.startswith(_CLOUD_IP_PREFIX):
+        return 'cloud'
+    if any(k in lo for k in _USER_ORG):
+        return 'user'
+    return 'unknown'
 
 def _cached_region(ip):
-    """只读 geo 缓存(无网络)。返回 (region, needs_query)"""
+    """只读 geo 缓存(无网络)。返回 (region, category, needs_query)
+    旧缓存缺 category 字段时触发补查(一次网络查询补齐成分)。"""
     data = _load_stats()
     ent = (data.get('geo') or {}).get(ip)
+    now = int(time.time() * 1000)
     if not ent:
-        return 'unknown', True
-    if ent.get('region') == 'unknown' and int(time.time() * 1000) - ent.get('ts', 0) >= GEO_TTL_MS:
-        return 'unknown', True
-    return ent.get('region', 'unknown'), False
+        return 'unknown', 'unknown', True
+    stale = now - ent.get('ts', 0) >= GEO_TTL_MS
+    # 旧缓存(仅 region 无 cat)补查一次,补齐成分字段
+    if 'cat' not in ent:
+        return ent.get('region', 'unknown'), 'unknown', True
+    if ent.get('region') == 'unknown' and stale:
+        return 'unknown', 'unknown', True
+    return ent.get('region', 'unknown'), ent.get('cat', 'unknown'), False
 
 def _geo_region(ip):
     """后台执行:网络查询 + 写回持久化缓存(原子写)"""
-    region = _geo_lookup(ip)
+    region, cat = _geo_lookup(ip)
     with _stats_lock:
         data = _load_stats()
-        data.setdefault('geo', {})[ip] = {'region': region, 'ts': int(time.time() * 1000)}
+        data.setdefault('geo', {})[ip] = {'region': region, 'cat': cat, 'ts': int(time.time() * 1000)}
         _save_stats(data)
-    return region
+    return region, cat
 
 def _geo_async(ip):
     """异步补查 IP 归属地(去重;查询分散在后台,避免打爆第三方限流)"""
@@ -204,12 +253,14 @@ def _stats_get(headers, addr):
     ips_month = len(set(v['ip'] for v in visits if v['ts'] >= now_ms - 30 * DAY))
     today_visits = [v for v in visits if v['ts'] >= today0]
     geo = {}
+    comp = {}
     # 地域统计:读持久化缓存(秒回);缓存缺失/过期的 IP 丢后台异步补查,
     # 本次显示 unknown,下轮轮询即有归属地,且不会阻塞页面聚合
     today_ips = set(v['ip'] for v in today_visits)
     for ip in today_ips:
-        region, need = _cached_region(ip)
+        region, cat, need = _cached_region(ip)
         geo[region] = geo.get(region, 0) + 1
+        comp[cat] = comp.get(cat, 0) + 1
         if need:
             _geo_async(ip)
     by_day = []
@@ -248,6 +299,7 @@ def _stats_get(headers, addr):
             'ips': ips, 'ipsToday': ips_today, 'ipsWeek': ips_week, 'ipsMonth': ips_month,
             'cn': geo.get('cn', 0), 'overseas': geo.get('overseas', 0),
             'unknown': geo.get('unknown', 0), 'byDay': by_day, 'byDayIps': by_day_ips,
+            'composition': comp,
             'domainsToday': domains_today, 'ipsTodayList': ips_today_list}
 
 def _stats_visit(headers, addr):
