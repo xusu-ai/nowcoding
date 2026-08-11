@@ -156,8 +156,8 @@ td.n{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
   <div class="section">
     <h2 data-i18n="secDomains">🌐 域名统计（今日）</h2>
     <table>
-      <thead><tr><th style="text-align:left" data-i18n="thHost">域名</th><th data-i18n="thIps">独立 IP</th><th style="text-align:left;width:60%" data-i18n="thShare">占比</th></tr></thead>
-      <tbody id="domain-body"><tr><td colspan="3" style="color:var(--text3)" data-i18n="loading">加载中…</td></tr></tbody>
+      <thead><tr><th style="text-align:left" data-i18n="thHost">域名</th><th data-i18n="thIps">独立 IP</th><th style="text-align:left;width:60%" data-i18n="thShare">占比</th><th data-i18n="thBare">裸域名</th><th data-i18n="thWww">www</th></tr></thead>
+      <tbody id="domain-body"><tr><td colspan="5" style="color:var(--text3)" data-i18n="loading">加载中…</td></tr></tbody>
     </table>
   </div>
 
@@ -189,7 +189,7 @@ const i18n={
     brand:'快兔算力',ready:'系统就绪',navQuota:'我的算力',navGuide:'算力接入指南',switchLang:'切换语言',startCoding:'开始编程 →',
     statsTitle:'📊 网站访问统计',statsDesc:'到访用户数 · 独立 IP 统计 · 点击量统计',
     secToday:'📅 今日统计',secTotal:'📈 累计统计',secPeriod:'🗓 周期统计',secGeo:'🌍 地域统计（今日独立 IP）',secComp:'🧬 访客成分分析（今日独立 IP）',secDomains:'🌐 域名统计（今日）',secIps:'🕵️ 今日访问 IP（隐私脱敏）',secTrend:'📊 近 14 天每日独立 IP',
-    thHost:'域名',thShare:'占比',thCompType:'成分类型',ipNote:'隐私保护：IP 仅显示前两段，如 1.2.*.*',
+    thHost:'域名',thShare:'占比',thBare:'裸域名',thWww:'www',thCompType:'成分类型',ipNote:'隐私保护：IP 仅显示前两段，如 1.2.*.*',
     hostUnknown:'(无域名 / 裸请求)',
     lblCompUser:'🧑 真实用户（住宅/移动）',lblCompBot:'🤖 搜索引擎爬虫',lblCompCloud:'☁️ 云主机/自动化',lblCompMonitor:'📡 监控/探测',lblCompUnknown:'❓ 未知',
     compNote:'判定依据：IP 归属机构（住宅宽带 / 移动网络 / 云主机 / 搜索爬虫段 / 监控服务），非浏览器行为分析。',
@@ -202,7 +202,7 @@ const i18n={
     brand:'Kuaitu',ready:'System Ready',navQuota:'My Compute',navGuide:'Access Guide',switchLang:'Switch language',startCoding:'Start Coding →',
     statsTitle:'📊 Site Statistics',statsDesc:'Visitors · Unique IPs · Clicks',
     secToday:'📅 Today',secTotal:'📈 All Time',secPeriod:'🗓 Period',secGeo:'🌍 Regions (Unique IPs)',secComp:'🧬 Visitor Composition (Unique IPs Today)',secDomains:'🌐 Domains (Today)',secIps:'🕵️ Today\'s IPs (Masked)',secTrend:'📊 Daily Unique IPs (14d)',
-    thHost:'Domain',thShare:'Share',thCompType:'Type',ipNote:'Privacy: IPs shown as first two octets only, e.g. 1.2.*.*',
+    thHost:'Domain',thShare:'Share',thBare:'Bare',thWww:'www',thCompType:'Type',ipNote:'Privacy: IPs shown as first two octets only, e.g. 1.2.*.*',
     hostUnknown:'(no Host / raw request)',
     lblCompUser:'🧑 Real users (residential/mobile)',lblCompBot:'🤖 Search engine bots',lblCompCloud:'☁️ Cloud / automation',lblCompMonitor:'📡 Monitoring / probes',lblCompUnknown:'❓ Unknown',
     compNote:'Classified by IP ownership (residential/mobile ISP, cloud hosting, search-bot ranges, monitoring services), not browser behavior.',
@@ -255,13 +255,16 @@ async function load(){
       const w=Math.round(x.n/max*100);
       return '<tr><td style="text-align:left">'+x.d+'</td><td class="n">'+fmt(x.n)+'</td><td class="bar-cell"><span class="bar-track" style="width:120px"><span class="bar-fill" style="width:'+w+'%"></span></span></td></tr>';
     }).join('')||'<tr><td colspan="3" style="color:var(--text3)">-</td></tr>';
-    // 域名统计(今日,覆盖全部关联域名)
+    // 域名统计(今日,覆盖全部关联域名,裸域名/www 分列)
     const doms=d.domainsToday||[];
     const dmax=Math.max(1,...doms.map(function(x){return x.ips}));
+    const dtotal=doms.reduce(function(s,x){return s+x.ips},0)||1;
     $('#domain-body').innerHTML=doms.map(function(x){
       const zero=x.ips===0;
       const w=zero?0:Math.round(x.ips/dmax*100);
-      return '<tr'+(zero?' style="opacity:.45"':'')+'><td style="text-align:left;font-family:var(--mono)">'+(x.host==='unknown'?t('hostUnknown'):x.host)+'</td><td class="n">'+(zero?'-':fmt(x.ips))+'</td><td class="bar-cell"><span class="bar-track" style="width:120px"><span class="bar-fill" style="width:'+w+'%"></span></span></td></tr>';
+      const pct=Math.round(x.ips/dtotal*100);
+      const bare=x.bare||0, ww=x.www||0;
+      return '<tr'+(zero?' style="opacity:.45"':'')+'><td style="text-align:left;font-family:var(--mono)">'+(x.host==='unknown'?t('hostUnknown'):x.host)+'</td><td class="n">'+(zero?'-':fmt(x.ips))+'</td><td class="bar-cell"><span class="bar-track" style="width:120px"><span class="bar-fill" style="width:'+w+'%"></span></span><span style="color:var(--text3);font-size:11px;margin-left:8px">'+pct+'%</span></td><td class="n">'+(bare?fmt(bare):'-')+'</td><td class="n">'+(ww?fmt(ww):'-')+'</td></tr>';
     }).join('');
     // 今日访问 IP(脱敏)
     const ipl=d.ipsTodayList||[];

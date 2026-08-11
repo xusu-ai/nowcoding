@@ -84,6 +84,11 @@ KNOWN_DOMAINS = {
     'upcoding.cn', 'kkcoding.cn', 'gpucode.cn', 'ttcoding.cn', 'sscoding.cn',
     'qqcoding.top', 'qqcoding.cn', 'qqcoding.com', 'codegpu.shop', 'codegpu.online',
     'codegpu.fun', 'codegpu.cn', 'qqcmd.fun', 'api.nowcoding.cn',
+    # 2026-08-09 证书拆分新增（110 域名 → 55 裸域名，www 自动归并）
+    'appleclaw.live', 'appleclaw.online', 'appleclaw.top', 'appleclaw.video', 'appleclaw.vip',
+    'cmdbot.cn', 'cmdcode.cn', 'dnmclaw.cn', 'dnmclaw.com',
+    'qqclaw.club', 'qqclaw.shop', 'qqclaw.site', 'qqclaw.space', 'qqclaw.vip',
+    'qqcmd.online', 'qqcmd.shop', 'yyyclaw.net', 'yyyclaw.online',
 }
 
 def _norm_host(h):
@@ -294,17 +299,34 @@ def _stats_get(headers, addr):
         by_day_ips.append({'d': datetime.fromtimestamp(s / 1000).strftime('%m-%d'),
                            'n': len(set(v['ip'] for v in day_visits))})
     # 域名统计:每个域名当日独立 IP 数(覆盖全部关联域名,0 访问也列出)
+    # 2026-08-09:裸域名 / www 前缀拆分统计(bare=裸域名, www=www.前缀)
     today_visits = [v for v in visits if v['ts'] >= today0]
     host_ips = {d: set() for d in KNOWN_DOMAINS}
-    other_ips = {}
+    host_bare_ips = {d: set() for d in KNOWN_DOMAINS}
+    host_www_ips = {d: set() for d in KNOWN_DOMAINS}
+    other_bare_ips = {}
+    other_www_ips = {}
     for v in today_visits:
-        h = _norm_host(v.get('host') or '')
+        raw = (v.get('host') or '').lower().strip()
+        h = _norm_host(raw)
         if h in KNOWN_DOMAINS:
             host_ips[h].add(v['ip'])
+            if raw.startswith('www.'):
+                host_www_ips[h].add(v['ip'])
+            else:
+                host_bare_ips[h].add(v['ip'])
         else:
-            other_ips.setdefault(h or 'unknown', set()).add(v['ip'])
-    domains_today = ([{'host': d, 'ips': len(s), 'known': True} for d, s in host_ips.items()] +
-                     [{'host': h, 'ips': len(s), 'known': False} for h, s in other_ips.items()])
+            if raw.startswith('www.'):
+                other_www_ips.setdefault(h or 'unknown', set()).add(v['ip'])
+            else:
+                other_bare_ips.setdefault(h or 'unknown', set()).add(v['ip'])
+    other_ips = {h: (other_bare_ips.get(h, set()) | other_www_ips.get(h, set()))
+                 for h in set(other_bare_ips) | set(other_www_ips)}
+    domains_today = ([{'host': d, 'ips': len(s), 'bare': len(host_bare_ips[d]),
+                       'www': len(host_www_ips[d]), 'known': True} for d, s in host_ips.items()] +
+                     [{'host': h, 'ips': len(s), 'bare': len(other_bare_ips.get(h, set())),
+                       'www': len(other_www_ips.get(h, set())), 'known': False}
+                      for h, s in other_ips.items()])
     domains_today.sort(key=lambda x: -x['ips'])
     # 当日独立 IP 列表(隐私脱敏:只显示前两段)
     def _mask(ip):
