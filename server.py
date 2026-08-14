@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ShowCode HTTP server - port 3000"""
 import http.server, os, sys, json, re, random, threading, time, socket
-import gzip, io
+import gzip, io, shutil
 from concurrent.futures import ThreadPoolExecutor
 import urllib.request, urllib.error
 socket.setdefaulttimeout(None)  # 永不超时，AI 生成可不间断进行
@@ -72,6 +72,59 @@ def save_projects(projects):
     os.makedirs(PROJECTS_DIR, exist_ok=True)
     with open(PROJECTS_JSON, 'w', encoding='utf-8') as f:
         json.dump(projects, f, ensure_ascii=False, indent=2)
+
+# ---------- 项目磁盘清理：删除作品时同步清除本地文件 ----------
+def _project_folder_path(folder):
+    """校验 folder 是否为安全的项目目录名，返回绝对路径；不安全返回 None。
+    只接受项目目录命名格式(如 056_2026-08-15_标题)，并拒绝路径穿越。"""
+    if not folder or folder != os.path.basename(folder):  # 拒绝含路径分隔符/上级目录
+        return None
+    if not re.match(r'^\d{1,4}_', folder):                # 只匹配项目目录命名格式
+        return None
+    path = os.path.join(PROJECTS_DIR, folder)
+    try:
+        if os.path.commonpath([os.path.realpath(path), os.path.realpath(PROJECTS_DIR)]) \
+                != os.path.realpath(PROJECTS_DIR):
+            return None
+    except ValueError:
+        return None
+    return path
+
+def _delete_project_folder(project):
+    """删除项目对应的磁盘目录(html/css/js 一起清除)。返回目录是否被删除。"""
+    path = _project_folder_path((project or {}).get('folder') or '')
+    if not path or not os.path.isdir(path):
+        return False
+    shutil.rmtree(path, ignore_errors=True)
+    return not os.path.exists(path)
+
+def _cleanup_orphan_folders():
+    """启动清理：删除 projects.json 中已不存在的孤儿目录(历史遗留)。
+    仅当 projects.json 成功解析时才执行，文件缺失/损坏时跳过，防止误删。"""
+    try:
+        with open(PROJECTS_JSON, 'r', encoding='utf-8') as f:
+            projects = json.load(f)
+    except Exception:
+        return 0
+    if not isinstance(projects, list):   # JSON 可解析但不是列表(数据异常)时跳过
+        return 0
+    refs = {p.get('folder') for p in projects if p.get('folder')}
+    try:
+        names = os.listdir(PROJECTS_DIR)
+    except OSError:
+        return 0
+    removed = 0
+    for name in sorted(names):
+        path = _project_folder_path(name)
+        if path and name not in refs and os.path.isdir(path):
+            try:
+                shutil.rmtree(path, ignore_errors=True)
+                if not os.path.exists(path):
+                    removed += 1
+                    print('orphan folder removed: ' + name, flush=True)
+            except Exception:
+                pass
+    return removed
 
 # ---------- 访问统计(独立 IP / 点击量 / 日周月 / 大陆海外) ----------
 # 本站 nginx 关联域名清单(server_name,去 www 归一化)
@@ -448,8 +501,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == '/api/projects':
             try:
                 pid = _qs(parsed.query).get('id', '')
-                save_projects([p for p in load_projects() if p.get('id') != pid])
-                self._send_json(200, {'ok': True})
+                projects = load_projects()
+                target = next((p for p in projects if p.get('id') == pid), None)
+                if target is None:
+                    return self._send_json(404, {'ok': False, 'error': 'project not found'})
+                save_projects([p for p in projects if p.get('id') != pid])
+                removed = _delete_project_folder(target)  # 同步删除本地文件/目录
+                self._send_json(200, {'ok': True, 'removed': removed,
+                                      'folder': target.get('folder') or ''})
             except Exception as e:
                 self._send_json(500, {'ok': False, 'error': str(e)})
         else:
@@ -671,6 +730,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     threading.Thread(target=_geo_backfill_loop, daemon=True).start()  # 后台定期补查 geo/cat 缓存
+    _cleanup_orphan_folders()  # 启动清理:删除与 projects.json 不同步的历史遗留目录
     httpd = http.server.ThreadingHTTPServer((os.environ.get('SHOWCODE_BIND', '127.0.0.1'), PORT), Handler)
     print("ShowCode server running on http://0.0.0.0:{}".format(PORT), flush=True)
     httpd.serve_forever()
