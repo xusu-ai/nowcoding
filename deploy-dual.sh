@@ -57,10 +57,16 @@ cmd_sync() {
     git rebase --continue 2>/dev/null || true
   }
 
-  # 确保 README.md 是英文版
+  # 确保 README.md 是英文版(有差异时提交,否则跳过——修复:原来只 add 不 commit,
+  # 推送到 GitHub 的 README.md 永远是旧英文版)
   if [ -f README.en.md ]; then
     cp README.en.md README.md
     git add README.md
+    if ! git diff --cached --quiet -- README.md; then
+      git commit -m "docs: sync English README from README.en.md" -- README.md
+    else
+      git reset -q -- README.md
+    fi
   fi
 
   # 推送到 GitHub
