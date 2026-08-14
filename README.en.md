@@ -20,7 +20,7 @@ A lightweight online code editor, preview, and sharing platform with AI-powered 
 python3 server.py
 ```
 
-The server starts on `http://0.0.0.0:3000` by default.
+Running `python3 server.py` directly listens on `127.0.0.1:3000` by default. In production, a systemd unit starts it with `SHOWCODE_PORT=13000` (listening on `127.0.0.1:13000`), served to the outside world through an nginx reverse proxy.
 
 ### Option 2: Deploy Script (Recommended)
 
@@ -33,18 +33,18 @@ This chains nginx configuration, reloads it, and starts the backend in one step.
 ## 🗂️ Project Structure
 
 ```
-showcode/
+nowcoding/
 ├── index.html               # Homepage — Kuaitu Compute nav page
 ├── ui.html            # Main application — code editor & gallery UI
 ├── quota.html               # Compute quota (placeholder page)
 ├── guide.html               # Compute access guide (placeholder page)
 ├── server.py                # Python backend (stdlib only, handles /api/save)
 ├── projects/                # Saved projects land here (auto-created)
-├── nginx.showcode.conf      # nginx site config (drop-in for new servers)
+├── nginx.nowcoding.conf     # nginx site config (drop-in for new servers)
 ├── deploy.sh                # all-in-one deploy/ops script
-├── README.md                # Project documentation (English)
-├── README.en.md             # Project documentation (English backup)
-└── README.zh.md             # Project documentation (Chinese)
+├── README.md                # Project documentation (Chinese on master, English on github branch)
+├── README.en.md             # English version (source for the github branch)
+└── README.zh.md             # Chinese backup
 ```
 
 ## 🔁 Migration to a New Server
@@ -55,11 +55,11 @@ The business logic is decoupled from nginx: nginx only serves static files and r
 # 1) On the target server: install nginx and Python
 sudo apt update && sudo apt install -y nginx python3
 
-# 2) Copy the entire showcode/ directory to the target server (any path, e.g. /opt/showcode)
-sudo mkdir -p /opt && sudo cp -r showcode /opt/
+# 2) Copy the entire nowcoding/ directory to the target server (any path, e.g. /opt/nowcoding)
+sudo mkdir -p /opt && sudo cp -r nowcoding /opt/
 
 # 3) Run the deployment script
-cd /opt/showcode && sudo ./deploy.sh
+cd /opt/nowcoding && sudo ./deploy.sh
 ```
 
 `deploy.sh` sub-commands:
@@ -72,12 +72,12 @@ cd /opt/showcode && sudo ./deploy.sh
 
 ### Port & Directory Configuration
 
-Only two changes needed in `nginx.showcode.conf`:
+Only two changes needed in `nginx.nowcoding.conf`:
 
-- `root /showcode;` — change to your actual directory path
+- `root /nowcoding;` — change to your actual directory path
 - `proxy_pass http://127.0.0.1:8104/v1/;` — change to your LLM API upstream (or remove the entire block if AI is not needed)
 
-To change the backend port (default 3000), edit `PORT =` in `server.py` and keep the `proxy_pass` port in `nginx.showcode.conf` in sync.
+The backend port defaults to 3000 and is configurable via the `SHOWCODE_PORT`/`SHOWCODE_BIND` environment variables (production systemd uses 13000); keep the `proxy_pass` port in `nginx.nowcoding.conf` in sync.
 
 ## 🧰 Tech Stack
 
@@ -116,7 +116,11 @@ server {
 
 ### Port Configuration
 
-Edit `server.py` and change `PORT = 3000` to your desired port.
+The backend port defaults to 3000. Override it with the `SHOWCODE_PORT` environment variable (and `SHOWCODE_BIND` for the bind address); production systemd sets `SHOWCODE_PORT=13000`. Example:
+
+```bash
+SHOWCODE_PORT=13000 SHOWCODE_BIND=127.0.0.1 python3 server.py
+```
 
 ## 📄 License
 

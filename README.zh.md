@@ -21,7 +21,7 @@
 python3 server.py
 ```
 
-服务器默认监听 `0.0.0.0:3000`，浏览器访问 `http://你的IP:3000` 即可。
+直接运行默认监听 `127.0.0.1:3000`；生产环境由 systemd 以 `SHOWCODE_PORT=13000` 启动（监听 `127.0.0.1:13000`），由 nginx 反代对外提供服务。
 
 ### 方式二：一键部署脚本（推荐）
 
@@ -34,14 +34,14 @@ sudo ./deploy.sh
 ## 📁 项目结构
 
 ```
-showcode/
+nowcoding/
 ├── index.html               # 首页 - 快兔算力导航页
 ├── ui.html            # 主应用 - 代码编辑器与展示界面
 ├── quota.html               # 我的算力额度（占位页）
 ├── guide.html               # 算力接入指南（占位页）
 ├── server.py                # Python 后端（标准库，处理 /api/save）
 ├── projects/                # 保存的作品落盘目录（自动创建）
-├── nginx.showcode.conf      # nginx 站点配置（新服务器一键软链）
+├── nginx.nowcoding.conf     # nginx 站点配置（新服务器一键软链）
 ├── deploy.sh                # 全功能部署/运维脚本（见下表）
 ├── README.md                # 项目说明（中文）
 ├── README.en.md             # 项目说明（英文）
@@ -57,11 +57,11 @@ showcode/
 # 1) 目标服务器：装标准 nginx 和 Python
 sudo apt update && sudo apt install -y nginx python3
 
-# 2) 把整个 showcode/ 目录拷到目标服务器（路径随意，例如 /opt/showcode）
-sudo mkdir -p /opt && sudo cp -r showcode /opt/
+# 2) 把整个 nowcoding/ 目录拷到目标服务器（路径随意，例如 /opt/nowcoding）
+sudo mkdir -p /opt && sudo cp -r nowcoding /opt/
 
 # 3) 进目录跑一键部署脚本
-cd /opt/showcode && sudo ./deploy.sh
+cd /opt/nowcoding && sudo ./deploy.sh
 ```
 
 `deploy.sh` 子命令（systemd 单元、启停脚本都合并进来）：
@@ -74,12 +74,12 @@ cd /opt/showcode && sudo ./deploy.sh
 
 ### 调端口/目录
 
-只需改 `nginx.showcode.conf` 两处：
+只需改 `nginx.nowcoding.conf` 两处：
 
-- `root /showcode;` → 改成实际目录
+- `root /nowcoding;` → 改成实际目录
 - `proxy_pass http://127.0.0.1:8104/v1/;` → 你的 LLM 上游（不用 AI 就整段删掉）
 
-后端端口默认 3000，要改就改 `server.py` 里的 `PORT =`，同步改 `nginx.showcode.conf` 里 `proxy_pass` 的端口。
+后端代码默认端口 3000（环境变量 `SHOWCODE_PORT`/`SHOWCODE_BIND` 可调），生产 systemd 配置为 13000；改端口时同步改 `nginx.nowcoding.conf` 里 `proxy_pass` 的端口。
 
 ## 🔧 技术栈
 
@@ -91,10 +91,10 @@ cd /opt/showcode && sudo ./deploy.sh
 
 ### 修改端口
 
-编辑 `server.py`，修改 `PORT = 3000` 为你想要的端口号：
+通过环境变量修改端口与监听地址（不设置时默认 `SHOWCODE_PORT=3000` / `SHOWCODE_BIND=127.0.0.1`；生产 systemd 已配置为 `SHOWCODE_PORT=13000`）：
 
-```python
-PORT = 3000   # 改为你需要的端口
+```bash
+SHOWCODE_PORT=13000 SHOWCODE_BIND=127.0.0.1 python3 server.py
 ```
 
 ### Nginx 反向代理（可选）
@@ -105,7 +105,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:13000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
