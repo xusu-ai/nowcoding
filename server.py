@@ -14,7 +14,7 @@ PROJECTS_DIR = os.path.join(DIR, 'projects')
 PROJECTS_JSON = os.path.join(PROJECTS_DIR, 'projects.json')
 UPSTREAM_LLM = 'http://127.0.0.1:8104'
 MODEL_ROUTES = {
-    'Macaron-V1-Tall': 'http://127.0.0.1:8106',
+    'Qwen3.8-27B': 'http://127.0.0.1:8106',
 }
 
 def _upstream_for(model):
@@ -42,7 +42,7 @@ def _gen_suggestions(lang):
         'Return ONLY a JSON array of 4 strings: ["a","b","c","d"]. No markdown.'
     ).format(random.randint(1, 99999), 'Chinese' if is_zh else 'English')
     try:
-        text = _llm_call(prompt, model='Macaron-V1-Tall').strip()
+        text = _llm_call(prompt, model='Qwen3.8-27B').strip()
         if text.startswith('```'): text = text.split('\n', 1)[1] if '\n' in text else text.replace('```', '').strip()
         if text.endswith('```'): text = text[:-3].strip()
         s = json.loads(text)

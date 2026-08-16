@@ -432,8 +432,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans
 try{fetch('/api/stats/visit')}catch(e){}
 const SK='showcode_projects',CK='showcode_chat',LK='showcode_lang',MK='showcode_model';
 const MODELS=[
-  {id:'deepseek',name:'DeepSeek V4 Flash',model:'DeepSeek-V4-Flash'},
-  {id:'macaron',name:'Macaron-V1-Tall',model:'Macaron-V1-Tall'}
+  {id:'qwen3',name:'Qwen3.8-27B',model:'Qwen3.8-27B'},
+  {id:'deepseek',name:'DeepSeek V4 Flash',model:'DeepSeek-V4-Flash'}
 ];
 let curModel=MODELS[0];
 let lang='zh',projects=[],chat=[],mid=null,tab='latest',search='',lastCode='',gen=false,pt,activeEditor='html',deviceMode='desktop',fitActive=true,currentPage='editor';
