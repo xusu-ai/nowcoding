@@ -92,8 +92,8 @@ The built-in AI assistant connects to OpenAI-compatible API endpoints:
 
 | Model | Endpoint | Status |
 |-------|----------|--------|
-| Qwen3.6-27B | `:8099/v1` | Ready |
-| DeepSeek V4 Flash | `:8104/v1` | Ready |
+| Qwen3.8-27B | `:8106/v1` | Ready |
+| deepseek-v4-flash | `:8104/v1` | Ready |
 
 The assistant maintains conversation context, generates complete HTML pages, and supports code extraction and execution directly in the editor.
 
@@ -107,7 +107,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://127.0.0.1:13000;
+        proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
