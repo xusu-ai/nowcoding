@@ -70,7 +70,9 @@ cmd_sync() {
   fi
 
   # 推送到 GitHub
-  git push "$GITHUB_REMOTE" "$GITHUB_BRANCH:master"
+  # rebase 每次会重写 github 分支历史(哈希变化), 必须 force 推送;
+  # 用 --force-with-lease 而非 --force, 防止覆盖他人新推送
+  git push --force-with-lease "$GITHUB_REMOTE" "$GITHUB_BRANCH:master"
 
   # 切回 master
   git checkout master
