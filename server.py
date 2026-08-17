@@ -20,7 +20,7 @@ MODEL_ROUTES = {
 def _upstream_for(model):
     return MODEL_ROUTES.get(model, UPSTREAM_LLM)
 
-def _llm_call(prompt, temp=0.95, model='DeepSeek-V4-Flash', max_tokens=8192):
+def _llm_call(prompt, temp=0.95, model='deepseek-v4-flash', max_tokens=8192):
     upstream = _upstream_for(model)
     body = json.dumps({'model': model, 'messages': [{'role': 'user', 'content': prompt}],
         'temperature': temp, 'max_tokens': max_tokens, 'stream': False}).encode('utf-8')

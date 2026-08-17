@@ -364,7 +364,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans
         <h3 style="margin:0"><span class="dot"></span> <span data-i18n="aiAssistant">AI Code Assistant</span></h3>
         <div class="model-dropdown" id="model-select-wrap">
       <button class="model-dropdown-btn" onclick="toggleModelDropdown(event)" id="model-select-btn">
-        <span class="model-dropdown-text" id="model-select-text">DeepSeek V4 Flash</span>
+        <span class="model-dropdown-text" id="model-select-text">Qwen3.8-27B</span>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l3 3 3-3"/></svg>
       </button>
       <div class="model-dropdown-menu" id="model-select-menu"></div>
@@ -433,7 +433,7 @@ try{fetch('/api/stats/visit')}catch(e){}
 const SK='showcode_projects',CK='showcode_chat',LK='showcode_lang',MK='showcode_model';
 const MODELS=[
   {id:'qwen3',name:'Qwen3.8-27B',model:'Qwen3.8-27B'},
-  {id:'deepseek',name:'DeepSeek V4 Flash',model:'DeepSeek-V4-Flash'}
+  {id:'deepseek',name:'deepseek-v4-flash',model:'deepseek-v4-flash'}
 ];
 let curModel=MODELS[0];
 let lang='zh',projects=[],chat=[],mid=null,tab='latest',search='',lastCode='',gen=false,pt,activeEditor='html',deviceMode='desktop',fitActive=true,currentPage='editor';
