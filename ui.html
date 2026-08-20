@@ -6,7 +6,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ShowCode</title>
+<title>快兔算力</title>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{--g-start:#e79aa8;--g-mid:#e79aa8;--g-end:#e79aa8;--gradient:linear-gradient(135deg,var(--g-start),var(--g-mid),var(--g-end));--bg:#faf6f1;--surface:#fff;--border:#f1e5de;--text:#5c5650;--text2:#a79a90;--text3:#c6bab0;--radius-sm:6px;--radius:8px;--radius-lg:12px}
@@ -472,7 +472,7 @@ function init(){
   window.addEventListener('resize',function(){if(fitActive)applyFit();if(document.getElementById('modal-preview-wrap').classList.contains('fit'))applyModalFit()});
   // continue generation when tab hidden
   document.addEventListener('visibilitychange',function(){
-    if(document.hidden && gen) console.log('ShowCode: tab hidden, generation continues...');
+    if(document.hidden && gen) console.log('NowCoding: tab hidden, generation continues...');
   });
   window.addEventListener('beforeunload',function(e){
     if(gen){e.preventDefault();e.returnValue=t('beforeunload')}

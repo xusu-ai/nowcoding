@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# ShowCode 一键部署/运维脚本
+# NowCoding 一键部署/运维脚本
 #   sudo ./deploy.sh          # 完整部署（nginx + 后端，首次迁移用）
-#   sudo ./deploy.sh start    # 仅启动后端 server.py:3000
+#   sudo ./deploy.sh start    # 仅启动后端 server.py:13000
 #   sudo ./deploy.sh stop     # 停止后端
 #   sudo ./deploy.sh restart  # 重启后端
 #   sudo ./deploy.sh status   # 查看运行状态
@@ -10,6 +10,7 @@ set -e
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PY="python3 $DIR/server.py"
+PORT=13000   # 生产端口，与 nginx.nowcoding.conf 的 proxy_pass 保持一致
 PID_FILE="/var/run/nowcoding.pid"
 LOG_FILE="/var/log/nowcoding.log"
 NGINX_EN="/etc/nginx/sites-enabled/nowcoding"
@@ -19,7 +20,7 @@ start_backend() {
   mkdir -p /var/log
   touch "$LOG_FILE"
   chown "$SUDO_USER:$SUDO_USER" "$LOG_FILE" 2>/dev/null || true
-  nohup $PY > "$LOG_FILE" 2>&1 &
+  nohup env SHOWCODE_PORT=$PORT SHOWCODE_BIND=127.0.0.1 $PY > "$LOG_FILE" 2>&1 &
   echo $! > "$PID_FILE"
   sleep 1
   pgrep -f "$PY" >/dev/null && echo "后端已启动 (PID $(cat $PID_FILE))，日志 $LOG_FILE" || { echo "启动失败，查 $LOG_FILE"; exit 1; }
@@ -37,11 +38,13 @@ case "${1:-deploy}" in
   service)
     cat > /tmp/nowcoding.service << EOF
 [Unit]
-Description=ShowCode Backend (server.py:3000)
+Description=NowCoding Backend (server.py:$PORT)
 After=network.target
 [Service]
 Type=simple
 ExecStart=$PY
+Environment=SHOWCODE_PORT=$PORT
+Environment=SHOWCODE_BIND=127.0.0.1
 Restart=always
 RestartSec=5
 [Install]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ShowCode HTTP server - port 3000"""
+"""NowCoding HTTP server - 默认端口 3000，生产 SHOWCODE_PORT=13000"""
 import http.server, os, sys, json, re, random, threading, time, socket
 import gzip, io, shutil
 from concurrent.futures import ThreadPoolExecutor
@@ -731,6 +731,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     threading.Thread(target=_geo_backfill_loop, daemon=True).start()  # 后台定期补查 geo/cat 缓存
     _cleanup_orphan_folders()  # 启动清理:删除与 projects.json 不同步的历史遗留目录
-    httpd = http.server.ThreadingHTTPServer((os.environ.get('SHOWCODE_BIND', '127.0.0.1'), PORT), Handler)
-    print("ShowCode server running on http://0.0.0.0:{}".format(PORT), flush=True)
+    BIND = os.environ.get('SHOWCODE_BIND', '127.0.0.1')
+    httpd = http.server.ThreadingHTTPServer((BIND, PORT), Handler)
+    print("NowCoding server running on http://{}:{}".format(BIND, PORT), flush=True)
     httpd.serve_forever()

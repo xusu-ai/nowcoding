@@ -153,7 +153,7 @@ const i18n={
     brand:'快兔算力',ready:'系统就绪',navQuota:'我的算力',navGuide:'算力接入指南',switchLang:'切换语言',startCoding:'开始编程 →',
     quotaDesc:'查看额度与用量明细，掌握账户余额，合理规划计算资源。',
     hint:'输入你接入时使用的 API Key，例如 sk-trial-xxxxxxxx…（可在 key 管理后台查看）',
-    query:'查询额度',querying:'查询中…',invalid:'无效的 API Key，请检查后重试',netErr:'网络请求失败，请稍后重试',
+    query:'查询额度',querying:'查询中…',invalid:'无效的 API Key，请检查后重试',netErr:'网络请求失败，请检查网络连接后重试',locked:'当前 IP 认证失败次数过多，请 30 秒后再试',rateErr:'请求过于频繁，请稍后重试',
     statusActive:'账户正常',statusExpired:'已到期',statusExhausted:'配额已用完',statusDisconnected:'已断联（限额超限）',
     planTrial:'1元试用',planMonthly:'80元包月',
     aliasOf:'用户别名',validUntil:'有效期至',daysLeft:'剩余 {n} 天',expiredSince:'已于 {d} 到期',
@@ -166,7 +166,7 @@ const i18n={
     brand:'Kuaitu',ready:'System Ready',navQuota:'My Compute',navGuide:'Access Guide',switchLang:'Switch language',startCoding:'Start Coding →',
     quotaDesc:'Check quota and usage. Track balance and plan resources.',
     hint:'Enter the API key you use, e.g. sk-trial-xxxxxxxx… (see your key dashboard)',
-    query:'Check Quota',querying:'Checking…',invalid:'Invalid API key, please try again',netErr:'Network error, please retry later',
+    query:'Check Quota',querying:'Checking…',invalid:'Invalid API key, please try again',netErr:'Network error, please check your connection and retry',locked:'Too many failed attempts from this IP, please retry in 30s',rateErr:'Too many requests, please retry later',
     statusActive:'Active',statusExpired:'Expired',statusExhausted:'Quota exhausted',statusDisconnected:'Disconnected (limit exceeded)',
     planTrial:'Trial ¥1',planMonthly:'Monthly ¥80',
     aliasOf:'Alias',validUntil:'Valid until',daysLeft:'{n} days left',expiredSince:'Expired on {d}',
@@ -212,7 +212,15 @@ async function query(){
   btn.disabled=true;btn.textContent=t('querying');
   try{
     const r=await fetch(API,{headers:{'Authorization':'Bearer '+key}});
-    if(!r.ok){res.className='result show';res.innerHTML='<div class="card" style="color:var(--text2)">'+(r.status===401?t('invalid'):t('netErr'))+'</div>';return}
+    if(!r.ok){
+      let msg=null;
+      if(r.status===401){msg=t('invalid')}
+      else{
+        try{const e=await r.json();msg=(e&&e.error&&e.error.message)||null}catch(_){}
+        if(!msg){msg=r.status===429?t('locked'):t('netErr')}
+      }
+      res.className='result show';res.innerHTML='<div class="card" style="color:var(--text2)">'+esc(msg)+'</div>';return
+    }
     const d=await r.json();
     res.className='result show';
     const isM=d.plan==='monthly';

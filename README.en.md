@@ -75,7 +75,7 @@ cd /opt/nowcoding && sudo ./deploy.sh
 Only two changes needed in `nginx.nowcoding.conf`:
 
 - `root /nowcoding;` — change to your actual directory path
-- `proxy_pass http://127.0.0.1:8104/v1/;` — change to your LLM API upstream (or remove the entire block if AI is not needed)
+- `proxy_pass http://127.0.0.1:13000/api/;` — backend port (production uses 13000, kept in sync with PORT in deploy.sh)
 
 The backend port defaults to 3000 and is configurable via the `SHOWCODE_PORT`/`SHOWCODE_BIND` environment variables (production systemd uses 13000); keep the `proxy_pass` port in `nginx.nowcoding.conf` in sync.
 
@@ -107,7 +107,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:13000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }

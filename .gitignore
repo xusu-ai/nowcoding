@@ -11,3 +11,4 @@ stats.json
 *.bak.*
 *.bak
 *.rename.*
+stats.json.bak-*

@@ -77,7 +77,7 @@ cd /opt/nowcoding && sudo ./deploy.sh
 只需改 `nginx.nowcoding.conf` 两处：
 
 - `root /nowcoding;` → 改成实际目录
-- `proxy_pass http://127.0.0.1:8104/v1/;` → 你的 LLM 上游（不用 AI 就整段删掉）
+- `proxy_pass http://127.0.0.1:13000/api/;` → 后端端口（生产 13000，与 deploy.sh 的 PORT 保持一致）
 
 后端代码默认端口 3000（环境变量 `SHOWCODE_PORT`/`SHOWCODE_BIND` 可调），生产 systemd 配置为 13000；改端口时同步改 `nginx.nowcoding.conf` 里 `proxy_pass` 的端口。
 

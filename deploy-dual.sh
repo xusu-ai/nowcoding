@@ -112,8 +112,8 @@ if [ $# -eq 0 ]; then
 
   echo ""
   echo "✅ 双站推送完成"
-  echo "  Gitee: https://gitee.com/xusuai/showcode"
-  echo "  GitHub: https://github.com/xusu-ai/showcode"
+  echo "  Gitee: https://gitee.com/xusuai/nowcoding"
+  echo "  GitHub: https://github.com/xusu-ai/nowcoding"
   echo "  Commit: $LAST_COMMIT"
 
 elif [ "$1" = "status" ]; then
